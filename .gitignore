@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+.ipynb_checkpoints/
+.DS_Store
+.env
+
+data/raw/audio/
+data/raw/*.csv
+data/interim/
+data/processed/
+
+*.pt
+*.pth
+*.ckpt
