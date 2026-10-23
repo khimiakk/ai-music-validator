@@ -3,10 +3,11 @@
 This module packages the logic of ``02_expert_annotations.ipynb`` so it can be
 re-run from the raw CSV, and finishes Stage 2:
 
-* ``RULES_V2``        – the 19 extraction rules from notebook 02 (unchanged).
+* ``RULES_V2``        – the 19 extraction rules from notebook 02 (unchanged);
+  ``RULE_V2_FIXES`` relabels two of them after manual review 04.
 * ``COMMENT_RULES``   – comment-level annotations from the manual review
-  (batch 1 and 2 from the notebook, plus draft rules for the remaining
-  uncovered comments). They are keyed by a regex on the comment text, not by
+  (batch 1 and 2 from the notebook, draft rules for the remaining uncovered
+  comments, and manual review 04). They are keyed by a regex on the comment text, not by
   ``review_id``, so every track that shares a comment automatically gets the
   same labels (this fixes the propagation caveat of the deduplicated queue).
 * ``build_mismatch_records``  – one row per (track, issue).
@@ -71,6 +72,14 @@ ADDITIONAL_MISMATCH_RULES = [
 
 RULES_V2 = MISMATCH_RULES + ADDITIONAL_MISMATCH_RULES
 
+# Manual review 04: these rule_v2 records mean "the prompt asked for no vocals and the track
+# has vocals", the same situation as "added voice" -> error_type added (ignored) instead of
+# incorrect (changed). Notebook 02 still labels them incorrect; the record count is unchanged.
+RULE_V2_FIXES = {
+    r"does not follow [\"']?instrumental": dict(error_type="added"),
+    r"\bnot instrumental\b": dict(error_type="added"),
+}
+
 # Section 2.8 of notebook 02: vocals were never prohibited in these prompts,
 # so "added voice" is an unexpected addition, not a violated requirement.
 UNEXPECTED_VOCALS_ORIGINAL_IDS = {"1y1lEOGBcWM", "298Q_pSLflU"}
@@ -84,8 +93,8 @@ class CommentRule:
     """Annotation attached to every comment that matches ``pattern``.
 
     ``records`` may be empty (positive / purely descriptive comments).
-    ``review_status``: ``text_reviewed`` (checked against prompt text in the
-    notebook) or ``needs_review`` (draft – please confirm).
+    ``review_status``: ``text_reviewed`` (checked against the prompt text in the
+    notebook or in manual review 04) or ``needs_review`` (draft – please confirm).
     """
     pattern: str
     comment_type: str  # mismatch | positive | mixed | descriptive
@@ -137,8 +146,6 @@ COMMENT_RULES: list[CommentRule] = [
     # ---- Draft rules for the remaining uncovered comments (to be confirmed) ----
     CommentRule(r"\bnot a live performance\b", "mismatch",
                 [_rec("other", "live performance", "studio-like", "incorrect")], source="manual_draft_03"),
-    CommentRule(r"does not follow the vocal command", "mismatch",
-                [_rec("vocals", "prompted vocal type", "different vocals", "incorrect")], source="manual_draft_03"),
     CommentRule(r"confounds afrobeat", "mismatch",
                 [_rec("genre", "afrobeat", "generic African-themed music", "incorrect")], source="manual_draft_03"),
     CommentRule(r"very far stylistically from the prompted", "mismatch",
@@ -154,12 +161,6 @@ COMMENT_RULES: list[CommentRule] = [
     CommentRule(r"instruments present although sparse", "mismatch",
                 [_rec("instruments", "no instruments (a cappella)", "sparse instruments present", "added")],
                 source="manual_draft_03", notes="Check the full comment: 'ignoring ...' which instruction?"),
-    CommentRule(r"lab[ae]l+ed instrumental by the generator but has", "mismatch",
-                [_rec("vocals", "instrumental", "vocals present", "added")], source="manual_draft_03"),
-    CommentRule(r"lyrics generated in (?P<lang>[a-z]+)", "mismatch",
-                [_rec("vocals", "prompted lyric language", "lyrics in {lang}", "incorrect")], source="manual_draft_03"),
-    CommentRule(r"could slightly pass as low quality", "mixed",
-                [_rec("other", "low recording quality", "only slightly low quality", "partial")], source="manual_draft_03"),
     CommentRule(r"\bsome words added\b", "mismatch",
                 [_rec("vocals", "no words (vocables only)", "some words added", "added")], source="manual_draft_03"),
     CommentRule(r"\bno people talking or cla(?:p)?ping\b", "mismatch",
@@ -175,6 +176,36 @@ COMMENT_RULES: list[CommentRule] = [
     CommentRule(r"best version that follows the prompt", "positive", [], source="manual_draft_03"),
     CommentRule(r"catchy known riff", "descriptive", [], source="manual_draft_03",
                 notes="Possible memorisation; not a prompt mismatch."),
+    # ---- Manual review 04 (gaps found when reading the full comments) ----
+    CommentRule(r"does not follow the vocal command and makes it instrumental", "mismatch",
+                [_rec("vocals", "vocals", "absent", "missing")], "text_reviewed", "manual_review_04"),
+    CommentRule(r"instead using a guitar", "mismatch",
+                [_rec("instruments", "piano and synth", "guitar", "replaced")], "text_reviewed", "manual_review_04"),
+    CommentRule(r"nothing polish in it|stilistically innacurrate", "mismatch",
+                [_rec("genre", "polish folk music", "irish folk / stylistically inaccurate", "incorrect")],
+                "text_reviewed", "manual_review_04"),
+    CommentRule(r"\bno humming\b", "mismatch",
+                [_rec("vocals", "humming", "absent", "missing")], "text_reviewed", "manual_review_04"),
+    # wider than the rule_v2 voice rules (optional "a"; voice / vocal / singer, singular or plural).
+    # Comments those rules already match are skipped, so the rule_v2 count stays 117.
+    CommentRule(r"\bnot clearly (?:a )?(?P<gender>male|female) (?:voice|vocal|singer)s?\b", "mismatch",
+                [_rec("vocals", "{gender} vocals", "unclear vocal type", "incorrect")],
+                "text_reviewed", "manual_review_04"),
+    CommentRule(r"lyrics generated in \w+ in response to [\"']?foreign language", "descriptive", [],
+                "text_reviewed", "manual_review_04",
+                "The prompt only asks for a foreign language, so Spanish / French lyrics satisfy it."),
+    CommentRule(r"could slightly pass as low quality", "mismatch",
+                [_rec("other", "low recording quality", "far from low quality", "incorrect")],
+                "text_reviewed", "manual_review_04", "'still far away from low'"),
+    CommentRule(r"lab[ae]l+ed instrumental by the generator but has", "mismatch",
+                [_rec("vocals", "vocals not specified", "lyrics added", "unexpected_addition")],
+                "text_reviewed", "manual_review_04", "The prompt has no vocals / instrumental requirement."),
+    CommentRule(r"foreign hindi accent", "mismatch",
+                [_rec("vocals", "accent not specified", "Hindi accent added", "unexpected_addition")],
+                "text_reviewed", "manual_review_04"),
+    CommentRule(r"composition are not followed", "mismatch",
+                [_rec("other", "composition as described (what happens in which bar)", "not followed", "incorrect")],
+                "text_reviewed", "manual_review_04"),
 ]
 
 # Generic fallback: "No <instrument>" for instruments not covered above.
@@ -200,25 +231,41 @@ def _generic_instrument_records(text: str, covered_spans: list[tuple[int, int]])
 # 3. Extraction
 # ---------------------------------------------------------------------------
 
-def extract_records(comment) -> tuple[list[dict], str]:
-    """Return (records, comment_type) for one expert comment."""
-    if comment is None or (isinstance(comment, float) and pd.isna(comment)) or not str(comment).strip():
-        return [], "missing"
-    text = str(comment).lower().strip()
-    records, seen, spans = [], set(), []
-    types = []
+def rule_v2_records(text: str) -> list[dict]:
+    """Records from the notebook-02 rules alone (RULES_V2), before manual review 04.
 
+    ``text`` is the lower-cased comment. Notebook 02 got 117 records on 104 tracks this way.
+    """
+    records, seen = [], set()
     for rule in RULES_V2:
         for m in re.finditer(rule["pattern"], text):
             key = (rule["category"], rule["expected"], rule["error_type"], m.start(), m.end())
             if key in seen:
                 continue
             seen.add(key)
-            spans.append((m.start(), m.end()))
             records.append(dict(category=rule["category"], expected=rule["expected"],
                                 observed=rule["observed"], error_type=rule["error_type"],
-                                evidence=m.group(0), source="rule_v2", review_status="auto_extracted"))
-            types.append("mismatch")
+                                evidence=m.group(0), source="rule_v2", review_status="auto_extracted",
+                                pattern=rule["pattern"], span=(m.start(), m.end())))
+    return records
+
+
+def extract_records(comment) -> tuple[list[dict], str]:
+    """Return (records, comment_type) for one expert comment."""
+    if comment is None or (isinstance(comment, float) and pd.isna(comment)) or not str(comment).strip():
+        return [], "missing"
+    text = str(comment).lower().strip()
+    records, spans = [], []
+    types = []
+
+    for rec in rule_v2_records(text):
+        spans.append(rec.pop("span"))
+        fix = RULE_V2_FIXES.get(rec.pop("pattern"))
+        if fix:
+            rec.update(fix, source="manual_review_04", review_status="text_reviewed",
+                       review_notes="extracted by rule_v2; error_type changed from incorrect to added")
+        records.append(rec)
+        types.append("mismatch")
 
     for cr in COMMENT_RULES:
         m = re.search(cr.pattern, text)
@@ -297,7 +344,7 @@ MISMATCH_ERROR_TYPES = {"missing", "added", "incorrect", "replaced", "unexpected
 
 VOCALS_PRESENT_PATTERNS = [r"\badded voice\b", r"\bnot instrumental\b", r"does not follow [\"']?instrumental",
                            r"lab[ae]l+ed instrumental by the generator but has", r"does not follow [\"']?no singer",
-                           r"\bsome words added\b", r"lyrics generated in", r"realistic voice"]
+                           r"\bsome words added\b", r"lyrics generated in", r"realistic voice", r"\bonly vocables\b"]
 VOCALS_ABSENT_PATTERNS = [r"(?:^|[.!]\s*)no vocals?\b", r"\bdoes not have (?:a )?voice\b"]
 
 

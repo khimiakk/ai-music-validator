@@ -18,12 +18,14 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from aimv.annotations import COMMENT_RULES, RULES_V2, build_ground_truth, build_mismatch_records  # noqa: E402
+from aimv.annotations import (COMMENT_RULES, RULES_V2, build_ground_truth,  # noqa: E402
+                              build_mismatch_records, rule_v2_records)
 from aimv.data import PROCESSED_DIR, has_text, load_sunocaps  # noqa: E402
 
 # notebook 02, section 2.5: the extended rule extractor (RULES_V2)
 NOTEBOOK_RULE_V2 = {"records": 117, "tracks": 104}
 REVIEW_SOURCES = ["manual_draft_03", "generic_no_instrument"]
+NEEDS_REVIEW = ["needs_review", "needs_audio_review"]
 
 
 def print_summary(df, records, per_category, per_track):
@@ -32,11 +34,18 @@ def print_summary(df, records, per_category, per_track):
     print("== records by source x review_status ==")
     print(pd.crosstab(records["source"], records["review_status"], margins=True).to_string())
 
-    rule_v2 = records[records["source"] == "rule_v2"]
-    got = {"records": len(rule_v2), "tracks": rule_v2["track_id"].nunique()}
+    # the notebook-02 extractor alone (manual review 04 relabels some of its records afterwards)
+    n_rule_v2 = df.loc[has_text(df["Comments"]), "Comments"].map(lambda c: len(rule_v2_records(c.lower().strip())))
+    got = {"records": int(n_rule_v2.sum()), "tracks": int((n_rule_v2 > 0).sum())}
     status = "OK" if got == NOTEBOOK_RULE_V2 else "DIFFERENT"
-    print(f"\nrule_v2 check vs notebook 02: {got['records']} records on {got['tracks']} tracks "
+    relabelled = records["review_notes"].str.startswith("extracted by rule_v2", na=False).sum()
+    print(f"\nRULES_V2 extractor vs notebook 02: {got['records']} records on {got['tracks']} tracks "
           f"(notebook: {NOTEBOOK_RULE_V2['records']} on {NOTEBOOK_RULE_V2['tracks']}) -> {status}")
+    print(f"  in the final records: {(records['source'] == 'rule_v2').sum()} with source rule_v2 "
+          f"+ {relabelled} relabelled by manual_review_04 (error_type incorrect -> added)")
+
+    still = records["review_status"].value_counts().reindex(NEEDS_REVIEW, fill_value=0)
+    print(f"\nrecords that still need review: {still.sum()} of {len(records)} ({still.to_dict()})")
 
     print(f"\n== comment_type over the {len(commented)} commented tracks ==")
     print(commented["comment_type"].value_counts().to_string())

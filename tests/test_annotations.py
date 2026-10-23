@@ -4,7 +4,8 @@ from pathlib import Path
 import pytest
 
 from aimv import CATEGORIES
-from aimv.annotations import MISMATCH_ERROR_TYPES, build_ground_truth, build_mismatch_records, extract_records
+from aimv.annotations import (MISMATCH_ERROR_TYPES, build_ground_truth, build_mismatch_records, extract_records,
+                              rule_v2_records, vocals_from_comment)
 from aimv.data import load_sunocaps
 
 FIXTURE = Path(__file__).parent / "fixtures" / "sunocaps_sample.csv"
@@ -76,17 +77,73 @@ def test_vocals_label_from_comment(data):
     assert t.loc["-r7iz-9v9bA_4", "vocals_present_gt"] == 0.0  # "... Does not have voice"
     assert t.loc["-r7iz-9v9bA_4", "vocals_gt_source"] == "comment"
     assert t.loc["1y1lEOGBcWM_1", "vocals_present_gt"] == 1.0  # "Added voice ..."
+    assert t.loc["-r7iz-9v9bA_3", "vocals_present_gt"] == 1.0  # "... only vocables prompt" (review 04)
+    assert t.loc["-r7iz-9v9bA_3", "vocals_gt_source"] == "comment"
+
+
+def test_not_instrumental_plus_composition(data):
+    _, records, _, _ = data
+    r = records[records["track_id"] == "2ShO1jZYZeA_3"].set_index("category")
+    assert r.loc["vocals", "error_type"] == "added" and r.loc["vocals", "verdict"] == "ignored"
+    assert r.loc["other", "error_type"] == "incorrect" and r.loc["other", "observed"] == "not followed"
 
 
 @pytest.mark.parametrize("comment, category, error_type", [
     ("No strings", "instruments", "missing"),
-    ("Not instrumental.", "vocals", "incorrect"),
-    ("Could slightly pass as low quality due to few instruments", "other", "partial"),
+    ("Not instrumental.", "vocals", "added"),  # review 04: was incorrect in notebook 02
+    ("Does not follow instrumental prompt.", "vocals", "added"),
+    ("Could slightly pass as low quality due to few instruments, but still far way from low.", "other", "incorrect"),
     ("No sitar", "instruments", "missing"),  # generic "No <instrument>" rule
+    ("No humming.", "vocals", "missing"),
+    ("Labaled instrumental by the generator but has lyrics", "vocals", "unexpected_addition"),
+    ("Very inapropiate as ads a foreign hindi accent", "vocals", "unexpected_addition"),
 ])
 def test_extract_records_single(comment, category, error_type):
     records, _ = extract_records(comment)
     assert [(r["category"], r["error_type"]) for r in records] == [(category, error_type)]
+
+
+def test_rule_v2_extractor_is_unchanged():
+    # the notebook-02 rules alone still say "incorrect"; review 04 relabels the record afterwards
+    raw = rule_v2_records("not instrumental.")
+    assert [(r["source"], r["error_type"]) for r in raw] == [("rule_v2", "incorrect")]
+    (rec,), _ = extract_records("Not instrumental.")
+    assert (rec["source"], rec["review_status"]) == ("manual_review_04", "text_reviewed")
+
+
+@pytest.mark.parametrize("comment, expected, source", [
+    ("Not clearly male voice", "male vocals", "manual_review_04"),
+    ("Not clearly female vocals", "female vocals", "manual_review_04"),
+    ("Not clearly a male singer", "male vocals", "rule_v2"),  # already a rule_v2 match, no duplicate
+    ("Not clearly male voices.", "male vocals", "rule_v2"),
+])
+def test_unclear_voice(comment, expected, source):
+    records, _ = extract_records(comment)
+    assert [(r["expected"], r["error_type"], r["source"]) for r in records] == [(expected, "incorrect", source)]
+
+
+def test_makes_it_instrumental():
+    records, _ = extract_records("Does not follow the vocal command and makes it instrumental. Not following the "
+                                 "piano and synth are doing the melody command and instead using a guitar.")
+    labels = {(r["category"], r["expected"], r["observed"], r["error_type"]) for r in records}
+    assert labels == {("vocals", "vocals", "absent", "missing"),
+                      ("instruments", "piano and synth", "guitar", "replaced")}
+
+
+def test_foreign_language_is_not_a_mismatch():
+    comment = 'lyrics generated in Spanish in response to "foreign language" prompt'
+    assert extract_records(comment) == ([], "descriptive")
+    assert vocals_from_comment(comment) == 1.0
+
+
+def test_review_04_records_are_text_reviewed():
+    comments = ["Not instrumental.", "No humming.", "Not clearly male voice", "Nothing polish in it.",
+                "Could slightly pass as low quality", "Specific instruction on musical terms about the "
+                "composition are not followed (in which bar happens what)."]
+    for comment in comments:
+        records, _ = extract_records(comment)
+        assert records and all(r["source"] == "manual_review_04" for r in records), comment
+        assert all(r["review_status"] == "text_reviewed" for r in records), comment
 
 
 def test_missing_comment():

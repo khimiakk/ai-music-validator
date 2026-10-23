@@ -42,12 +42,23 @@ data/raw/audio/<track_id>.mp3     # 256 files; subfolders are fine, aimv.data.au
 | step | command | status |
 |---|---|---|
 | 1. audio features (tempo + CLAP embeddings, ~70 s on Apple-silicon MPS) | `python scripts/extract_audio_features.py` | done |
-| 2. expert ground truth | `python scripts/build_ground_truth.py` (`--review` lists drafts) | done; 60 draft records still need review |
+| 2. expert ground truth | `python scripts/build_ground_truth.py` (`--review` lists drafts) | done; 62 of 213 records still need review |
 | 3. prompt requirements | `parse_prompts` | in progress (`aimv.prompt_parsing.parse_dataframe`) |
 | 4. verdicts + evaluation | `run_validation` | in progress |
 
 Sanity checks after step 1: `python scripts/check_audio_features.py` and
 `python scripts/compare_tempo.py` (writes to `results/`). Tests: `pytest`.
+
+## Ground truth (expert comments)
+
+The 183 expert comments become 213 mismatch records (`src/aimv/annotations.py`): the 19 notebook-02
+rules, manual review batches 01/02, draft rules 03 and manual review 04 (all text-reviewed).
+62 records still need review (54 draft, 8 need an audio check).
+
+Change vs notebook 02: the rule_v2 records "not instrumental" / "does not follow instrumental" mean
+the prompt asked for no vocals and the track has vocals, the same as "added voice", so their
+error_type is `added` (verdict `ignored`) instead of `incorrect` (`changed`). The notebook-02 rules
+alone still give 117 records on 104 tracks; 18 of them now carry source `manual_review_04`.
 
 ## Model choices
 
