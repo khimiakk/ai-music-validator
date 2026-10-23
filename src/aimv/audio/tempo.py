@@ -5,7 +5,8 @@
 * ``tempo_word_verdict`` tempo words ("slow", "fast", ...): CLAP zero-shot over
   slow / medium / fast. The librosa beat tracker is pulled towards ~120 BPM and
   could not separate fast from slow prompts (ROC-AUC 0.48, CLAP 0.89; see
-  scripts/compare_tempo.py).
+  scripts/compare_tempo.py). CLAP itself leans towards "slow", so the class
+  probabilities are prior-corrected (``prior_correct``) before the argmax.
 """
 from __future__ import annotations
 
@@ -17,10 +18,11 @@ TEMPO_CLASSES = ["slow", "medium", "fast"]
 
 # tempo word from the prompt (see vocab.TEMPO_WORDS) -> tempo classes that satisfy it
 TEMPO_WORD_CLASSES = {
-    "very slow": ["slow"], "slow": ["slow"], "downtempo": ["slow"],
+    "very slow": ["slow"], "slow": ["slow"], "slow tempo": ["slow"],
+    "downtempo": ["slow", "medium"],
     "medium": ["medium"], "moderate": ["medium"], "mid-tempo": ["medium"],
-    "medium fast": ["medium", "fast"], "medium-fast": ["medium", "fast"],
-    "uptempo": ["fast"], "up-tempo": ["fast"], "fast": ["fast"], "very fast": ["fast"], "quick": ["fast"],
+    "medium-fast": ["medium", "fast"], "medium fast": ["medium", "fast"],
+    "fast": ["fast"], "uptempo": ["fast"], "up-tempo": ["fast"], "quick": ["fast"], "very fast": ["fast"],
 }
 
 
@@ -55,13 +57,23 @@ def estimate_tempo_flat_prior(y: np.ndarray, sr: int, max_seconds: float = 120.0
     return float(tempo[0])
 
 
-def tempo_word_verdict(probs, word: str) -> tuple[str, str]:
+def prior_correct(probs, class_means) -> np.ndarray:
+    """Divide each class probability by its mean over all tracks, then renormalise."""
+    p = np.asarray(probs, dtype=float) / np.asarray(class_means, dtype=float)
+    return p / p.sum()
+
+
+def tempo_word_verdict(probs, word: str, class_means=None) -> tuple[str, str]:
     """Verdict for a tempo word. ``probs``: CLAP softmax over TEMPO_CLASSES (slow, medium, fast).
 
-    satisfied if the requested class has the highest probability, otherwise changed.
+    ``class_means``: mean CLAP probability of each class over all 256 tracks. If given,
+    ``probs`` are prior-corrected first (without it this is the plain argmax).
+    satisfied if the top class is one of the classes the word accepts, otherwise changed.
     """
     if word not in TEMPO_WORD_CLASSES:
         return "unknown", f"unknown tempo word {word!r}"
+    if class_means is not None:
+        probs = prior_correct(probs, class_means)
     top = TEMPO_CLASSES[int(np.argmax(probs))]
     if top in TEMPO_WORD_CLASSES[word]:
         return "satisfied", f"CLAP top class {top}"

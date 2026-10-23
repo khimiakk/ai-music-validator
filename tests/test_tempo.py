@@ -2,7 +2,7 @@
 import librosa
 import pytest
 
-from aimv.audio.tempo import estimate_tempo, tempo_verdict, tempo_word_verdict
+from aimv.audio.tempo import estimate_tempo, prior_correct, tempo_verdict, tempo_word_verdict
 
 SR = 48_000  # same rate the extraction script passes in (CLAP rate)
 
@@ -40,8 +40,25 @@ def test_tempo_verdict_octave():
     ([0.1, 0.2, 0.7], "slow", "changed"),
     ([0.6, 0.3, 0.1], "slow", "satisfied"),
     ([0.2, 0.5, 0.3], "medium fast", "satisfied"),
+    ([0.2, 0.5, 0.3], "medium-fast", "satisfied"),
+    ([0.2, 0.5, 0.3], "downtempo", "satisfied"),
+    ([0.1, 0.2, 0.7], "downtempo", "changed"),
     ([0.2, 0.5, 0.3], "uptempo", "changed"),
     ([0.2, 0.5, 0.3], "groovy", "unknown"),
 ])
 def test_tempo_word_verdict(probs, word, expected):
     assert tempo_word_verdict(probs, word)[0] == expected
+
+
+def test_prior_correct():
+    p = prior_correct([0.5, 0.2, 0.3], [0.6, 0.2, 0.2])
+    assert p.sum() == pytest.approx(1.0)
+    assert p.argmax() == 2  # 0.5/0.6 < 0.2/0.2 < 0.3/0.2, so fast wins
+    assert prior_correct([0.5, 0.2, 0.3], [1 / 3] * 3) == pytest.approx([0.5, 0.2, 0.3])
+
+
+def test_tempo_word_verdict_prior_corrected():
+    probs, means = [0.5, 0.2, 0.3], [0.6, 0.2, 0.2]  # raw argmax = slow, corrected argmax = fast
+    assert tempo_word_verdict(probs, "slow")[0] == "satisfied"
+    assert tempo_word_verdict(probs, "slow", means)[0] == "changed"
+    assert tempo_word_verdict(probs, "fast", means)[0] == "satisfied"
