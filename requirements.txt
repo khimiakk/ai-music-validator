@@ -1,0 +1,10 @@
+pandas>=2.0
+numpy
+scikit-learn
+matplotlib
+librosa>=0.10
+soundfile
+torch
+transformers>=4.40
+pytest
+jupyter
