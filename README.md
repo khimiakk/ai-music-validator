@@ -42,7 +42,7 @@ data/raw/audio/<track_id>.mp3     # 256 files; subfolders are fine, aimv.data.au
 | step | command | status |
 |---|---|---|
 | 1. audio features (tempo + CLAP embeddings, ~70 s on Apple-silicon MPS) | `python scripts/extract_audio_features.py` | done |
-| 2. expert ground truth | `build_ground_truth` | in progress (`aimv.annotations.build_ground_truth`) |
+| 2. expert ground truth | `python scripts/build_ground_truth.py` (`--review` lists drafts) | done; 60 draft records still need review |
 | 3. prompt requirements | `parse_prompts` | in progress (`aimv.prompt_parsing.parse_dataframe`) |
 | 4. verdicts + evaluation | `run_validation` | in progress |
 
