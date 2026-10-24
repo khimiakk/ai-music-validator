@@ -1,7 +1,10 @@
 """Stage 3 – decompose a text prompt into checkable requirements.
 
 Rule/vocabulary based (deterministic, no API needed). Works for both prompt
-types:
+types: aspect lists are split on commas, captions into sentences. Inside a
+phrase, negations are found first, then tempo, vocals, instruments, genre,
+mood and other; a term matched by an earlier category blocks overlapping
+matches in later ones (e.g. "beat boxing" is vocals, not the instrument "beat").
 """
 from __future__ import annotations
 
@@ -36,18 +39,25 @@ def _alternation(terms):
     return re.compile(r"(?<![\w-])(" + "|".join(re.escape(t) for t in terms) + r")(?:e?s)?(?![\w-])")
 
 
+def _with_aliases(terms):
+    """The terms plus their spelling variants from vocab.TERM_ALIASES."""
+    return list(terms) + [alias for alias, term in vocab.TERM_ALIASES.items() if term in terms]
+
+
 _RE = {
-    "instruments": _alternation(vocab.INSTRUMENT_TERMS),
-    "genre": _alternation(vocab.GENRE_TERMS),
-    "mood": _alternation(vocab.MOOD_TERMS),
-    "other": _alternation(vocab.OTHER_TERMS),
-    "vocals": _alternation(vocab.VOCAL_TERMS),
+    "instruments": _alternation(_with_aliases(vocab.INSTRUMENT_TERMS)),
+    "genre": _alternation(_with_aliases(vocab.GENRE_TERMS)),
+    "mood": _alternation(_with_aliases(vocab.MOOD_TERMS)),
+    "other": _alternation(_with_aliases(vocab.OTHER_TERMS)),
+    "vocals": _alternation(_with_aliases(vocab.VOCAL_TERMS)),
     "tempo_word": _alternation(vocab.TEMPO_WORDS),
 }
 _BPM = re.compile(r"(\d{2,3})\s*(?:bpm|beats per minute)")
-_NO_VOCALS = re.compile(r"\binstrumental\b(?!\s+(?:break|section|part|intro))|\b(?:no|without)\s+(?:vocals?|voices?|singers?|singing)\b|\bno one (?:is )?singing\b|\bthere (?:is|are) no (?:vocals?|singers?|singing)\b")
+_NO_VOCALS = re.compile(r"(?<!mostly )\binstrumental\b(?!\s+(?:break|section|part|intro))|\b(?:no|without)\s+(?:vocals?|voices?|singers?|singing)\b|\bno one (?:is )?singing\b|\bthere (?:is|are) no (?:vocals?|singers?|singing)\b|\bno \w+ (?:nor|or) (?:vocals?|voices?|singing)\b")
 _NO_LYRICS = re.compile(r"\b(?:no|without)\s+(?:words|lyrics)\b|\bonly vocables\b")
 _NO_INSTRUMENTS = re.compile(r"\b(?:no|without)\s+(?:instruments|instrumentation|accompaniment)\b|\ba ?cappella\b")
+_NO_OTHER_INSTRUMENTS = re.compile(r"\b(?:no|without)\s+(?:any\s+)?other\s+instruments?\b|\bwithout\s+any\s+(?:instrumentation|accompaniment)\b")
+_NEGATED_BEFORE = re.compile(r"\b(?:no|without)\s+(?:any\s+)?$")  # "no percussion", "without any drums"
 _FEMALE = re.compile(r"\b(?:female|woman|women|girl|girls|soprano|alto)\b")
 _MALE = re.compile(r"\b(?:male|man|men|boy|boys|tenor|baritone)\b")
 
@@ -66,6 +76,10 @@ def split_phrases(text: str, prompt_type: str) -> list[str]:
 
 def _covered(span, spans):
     return any(s <= span[0] and span[1] <= e for s, e in spans)
+
+
+def _overlaps(span, spans):
+    return any(span[0] < e and s < span[1] for s, e in spans)
 
 
 def parse_phrase(phrase: str, track_id: str = "", source: str = "") -> list[Requirement]:
@@ -91,6 +105,10 @@ def parse_phrase(phrase: str, track_id: str = "", source: str = "") -> list[Requ
         neg_spans.append(m.span())
         add(category="instruments", value="instruments", polarity=-1, check="clap",
             clap_text="a cappella singing without instruments")
+    m = _NO_OTHER_INSTRUMENTS.search(phrase)
+    if m:
+        neg_spans.append(m.span())
+        add(category="instruments", value="other instruments", polarity=-1, check="clap", clap_text=phrase)
 
     # ---- tempo -----------------------------------------------------------
     m = _BPM.search(phrase)
@@ -109,7 +127,11 @@ def parse_phrase(phrase: str, track_id: str = "", source: str = "") -> list[Requ
                 params=dict(bpm_min=lo, bpm_max=hi), clap_text=f"{label} tempo music")
             break
 
-    vocal_hits = [m for m in _RE["vocals"].finditer(phrase) if not _covered(m.span(), neg_spans)]
+    # "only vocables" forbids lyrics but still means singing
+    vocal_hits = [m for m in _RE["vocals"].finditer(phrase)
+                  if not _covered(m.span(), neg_spans) or m.group(1) == "vocables"]
+    # later categories skip these spans ("rap" stays a genre too)
+    taken = neg_spans + [m.span() for m in vocal_hits if m.group(1) not in vocab.GENRE_TERMS]
     if vocal_hits:
         add(category="vocals", value="vocals", check="vocal_presence", clap_text="a song with vocals")
         if _FEMALE.search(phrase):
@@ -119,25 +141,34 @@ def parse_phrase(phrase: str, track_id: str = "", source: str = "") -> list[Requ
             add(category="vocals", value="male vocals", check="vocal_gender",
                 params=dict(gender="male"), clap_text="a song sung by a male vocalist")
         for m in vocal_hits:
-            term = m.group(1)
+            term = vocab.TERM_ALIASES.get(m.group(1), m.group(1))
             if term in {"choir", "choral", "rap", "rapping", "rapper", "beatbox", "humming", "whistling",
                         "chant", "chanting", "falsetto", "spoken word", "yodel", "opera singer", "vocables",
                         "a cappella", "acapella", "harmonies", "backing vocals"}:
                 add(category="vocals", value=term, check="clap", clap_text=phrase if source == "aspect_list" else term)
 
     for cat in ("instruments", "genre", "mood", "other"):
+        cat_spans = []
         for m in _RE[cat].finditer(phrase):
-            if _covered(m.span(), neg_spans):
+            if _overlaps(m.span(), taken):
                 continue
-            term = m.group(1)
-            params, check = {}, "clap"
+            term = vocab.TERM_ALIASES.get(m.group(1), m.group(1))
+            params, check, polarity = {}, "clap", 1
             if cat == "instruments":
                 if term in ("beat", "beats") and source == "caption":
                     continue
+                # a beatboxer "imitating the drums" / "vocal percussion": no real instrument
+                if "imitat" in phrase or phrase[:m.start()].endswith("vocal "):
+                    continue
+                if _NEGATED_BEFORE.search(phrase[:m.start()]):
+                    polarity = -1
                 if term in vocab.ESSENTIA_INSTRUMENT_MAP:
                     check, params = "essentia_instrument", dict(label=vocab.ESSENTIA_INSTRUMENT_MAP[term])
-                clap = f"music with {term}"
+                clap = f"music with {term}" if polarity > 0 else f"music without {term}"
             elif cat == "genre":
+                # "ambient noise / sounds / nature sounds" describes the background, not the genre
+                if term == "ambient" and re.match(r"\s+(?:noise|sound|nature)", phrase[m.end():]):
+                    continue
                 if term in vocab.DISCOGS_GENRE_MAP:
                     check, params = "essentia_genre", dict(labels=vocab.DISCOGS_GENRE_MAP[term])
                 clap = f"{term} music"
@@ -149,9 +180,11 @@ def parse_phrase(phrase: str, track_id: str = "", source: str = "") -> list[Requ
                 if term == "live" and "live performance" in phrase:
                     continue
                 clap = term if term not in ("noise", "noisy", "mono", "live") else f"{term} recording"
-            if source == "aspect_list" and len(phrase) <= 60 and phrase != term:
+            if source == "aspect_list" and len(phrase) <= 60 and phrase != term and polarity > 0:
                 clap = phrase
-            add(category=cat, value=term, check=check, params=params, clap_text=clap)
+            cat_spans.append(m.span())
+            add(category=cat, value=term, polarity=polarity, check=check, params=params, clap_text=clap)
+        taken += cat_spans
 
     # Aspect tags that matched nothing are still requirements (checked by CLAP)
     if not reqs and source == "aspect_list":

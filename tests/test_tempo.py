@@ -44,6 +44,8 @@ def test_tempo_verdict_octave():
     ([0.2, 0.5, 0.3], "downtempo", "satisfied"),
     ([0.1, 0.2, 0.7], "downtempo", "changed"),
     ([0.2, 0.5, 0.3], "uptempo", "changed"),
+    ([0.2, 0.5, 0.3], "mid", "satisfied"),  # "mid tempo"
+    ([0.1, 0.2, 0.7], "faster", "satisfied"),  # "faster tempo"
     ([0.2, 0.5, 0.3], "groovy", "unknown"),
 ])
 def test_tempo_word_verdict(probs, word, expected):

@@ -18,8 +18,8 @@ INSTRUMENT_TERMS = [
     "drums", "drum", "drum kit", "acoustic drums", "drum machine", "percussion", "tabla", "tablas",
     "djembe", "congas", "bongos", "cajon", "cymbal", "cymbals", "hi-hat", "snare", "kick", "tambourine",
     "shaker", "claps", "handclaps", "xylophone", "marimba", "vibraphone", "glockenspiel", "bells", "bell",
-    "chimes", "gong", "steel drums", "timpani", "808",
-    "orchestra", "choir", "beat", "beats", "sampler", "turntable", "scratching",
+    "chimes", "gong", "steel drums", "timpani", "808", "triangle", "rimshot",
+    "orchestra", "beat", "beats", "sampler", "turntable", "scratching",
 ]
 
 # MTG-Jamendo instrument classes (Essentia) – term -> class
@@ -49,6 +49,7 @@ GENRE_TERMS = [
     "new age", "soundtrack", "cinematic", "video game", "game music", "children's music", "lullaby",
     "christian", "worship", "dance", "ballad", "march", "waltz", "tango", "flamenco", "celtic", "arabic",
     "middle eastern", "chinese", "japanese", "greek", "turkish", "advertisement music", "jingle",
+    "samba", "caribbean", "world music", "symphonic", "easy listening", "fanfare", "wedding music", "comedy",
 ]
 
 # Discogs-400 style keywords (Essentia genre_discogs400) – term -> substrings
@@ -82,7 +83,9 @@ MOOD_TERMS = [
     "trippy", "ethereal", "angelic", "celestial", "mystical", "mysterious", "dark", "eerie", "spooky",
     "suspenseful", "tense", "haunting", "groovy", "funky", "catchy", "nostalgic", "spiritual",
     "sweet", "lively", "cool", "heavy", "harsh", "loud", "sorrowful", "triumphant", "inspiring",
-    "motivational",
+    "motivational", "easygoing", "buoyant", "youthful", "engaging", "vigorous", "festive", "cozy", "euphoric",
+    "lonely", "loneliness", "sensual", "spirited", "perky", "violent", "manic", "chaotic", "monotonous",
+    "bored", "addictive", "soulful", "quirky", "weird", "poignant",
 ]
 
 # MTG-Jamendo mood/theme classes (Essentia) – term -> class
@@ -108,6 +111,7 @@ TEMPO_WORDS = {
     "medium tempo": (85, 125), "moderate tempo": (85, 125), "mid-tempo": (85, 125), "medium": (85, 125),
     "medium fast": (105, 140), "medium-fast": (105, 140), "uptempo": (115, 170), "up-tempo": (115, 170),
     "fast": (120, 200), "fast tempo": (120, 200), "very fast": (150, 220), "quick": (120, 200),
+    "mid tempo": (85, 125), "faster tempo": (120, 200),
 }
 
 VOCAL_TERMS = [
@@ -115,6 +119,7 @@ VOCAL_TERMS = [
     "rap", "rapping", "rapper", "choir", "choral", "chant", "chanting", "humming", "whistling",
     "vocables", "lyrics", "a cappella", "acapella", "soprano", "alto", "tenor", "baritone", "falsetto",
     "harmonies", "backing vocals", "beatbox", "spoken word", "opera singer", "yodel",
+    "male talking", "female talking", "man talking", "woman talking", "narrator", "narration",
 ]
 
 OTHER_TERMS = [
@@ -126,3 +131,24 @@ OTHER_TERMS = [
     "nature", "ambient noise", "background noise", "chatter", "people talking", "talking", "rustling",
     "whirring", "glass shattering", "ducks", "footsteps", "laughter", "nature atmosphere",
 ]
+
+# Spelling variants and typos seen in SunoCaps prompts -> the term used in the lists above.
+# The parser matches the variant and stores the term, e.g. "shimmering hi hats" -> instruments: hi-hat.
+TERM_ALIASES = {
+    # instruments
+    "e-bass": "bass", "e-guitar": "electric guitar", "electronic guitar": "electric guitar",
+    "guitar string": "guitar", "guitark": "guitar", "guitarist": "guitar", "sitarist": "sitar",
+    "acordion": "accordion", "synthesiser": "synthesizer", "hi hat": "hi-hat", "drumset": "drum kit",
+    "drumming": "drums", "baraban": "drum", "stringed instrument": "strings", "turn table": "turntable",
+    "percussive elements": "percussion",
+    # vocals
+    "beat boxing": "beatbox", "beat box": "beatbox", "beatboxing": "beatbox", "vocalisation": "vocals",
+    "vocalization": "vocals", "hummed": "humming", "hums": "humming", "yodeling": "yodel", "yodelling": "yodel",
+    # genre
+    "himdustani": "hindustani", "adverticement music": "advertisement music", "advertisement": "advertisement music",
+    "carribean": "caribbean", "childrens song": "children's music", "kids music": "children's music",
+    "songs for toddlers": "children's music", "kindergarten": "children's music",
+    "in game audio": "video game", "in-game audio": "video game",
+    # other
+    "inferior quality audio": "low quality", "mediocre audio quality": "low quality", "home recording": "amateur recording",
+}

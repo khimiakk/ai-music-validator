@@ -20,9 +20,10 @@ TEMPO_CLASSES = ["slow", "medium", "fast"]
 TEMPO_WORD_CLASSES = {
     "very slow": ["slow"], "slow": ["slow"], "slow tempo": ["slow"],
     "downtempo": ["slow", "medium"],
-    "medium": ["medium"], "moderate": ["medium"], "mid-tempo": ["medium"],
+    "medium": ["medium"], "moderate": ["medium"], "mid-tempo": ["medium"], "mid": ["medium"],
     "medium-fast": ["medium", "fast"], "medium fast": ["medium", "fast"],
     "fast": ["fast"], "uptempo": ["fast"], "up-tempo": ["fast"], "quick": ["fast"], "very fast": ["fast"],
+    "faster": ["fast"],
 }
 
 
