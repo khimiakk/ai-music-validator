@@ -1,0 +1,9 @@
+expert emotion,happy,exciting,sad,calm,content,angry,disgust,surprise
+happy,16,40,8,2,23,3,0,0
+exciting,2,27,0,0,3,20,2,0
+sad,5,3,22,2,5,3,0,0
+calm,1,0,15,7,0,3,0,0
+content,0,0,14,1,4,2,0,0
+angry,0,4,0,0,0,5,2,0
+disgust,0,3,0,0,0,3,0,1
+surprise,2,0,0,2,0,1,0,0

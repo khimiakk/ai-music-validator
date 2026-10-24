@@ -4,7 +4,7 @@
   check with +-8% tolerance; half/double tempo is accepted for these narrow ranges.
 * ``tempo_word_verdict`` tempo words ("slow", "fast", ...): CLAP zero-shot over
   slow / medium / fast. The librosa beat tracker is pulled towards ~120 BPM and
-  could not separate fast from slow prompts (ROC-AUC 0.48, CLAP 0.89; see
+  could not separate fast from slow prompts (ROC-AUC 0.47, CLAP 0.90; see
   scripts/compare_tempo.py). CLAP itself leans towards "slow", so the class
   probabilities are prior-corrected (``prior_correct``) before the argmax.
 """
