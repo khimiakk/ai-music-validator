@@ -49,6 +49,10 @@ data/raw/audio/<track_id>.mp3     # 256 files; subfolders are fine, aimv.data.au
 | 2. expert ground truth | `python scripts/build_ground_truth.py` (`--review` lists drafts) | done; 62 of 213 records still need review |
 | 3. prompt requirements | `python scripts/parse_prompts.py` (`--examples` prints 8 prompts side by side) | done; 2,172 requirements, covers 96% of expert records by category, 92% by element |
 | 4. verdicts + evaluation | `python scripts/run_validation.py` (~30 s, cached embeddings only) | done; see `results/summary.md` |
+| 5. Essentia scores (optional, Google Colab) | `notebooks/04_essentia.ipynb` → copy `essentia_scores.csv` to `data/processed/`, rerun step 4 | ready; not run yet |
+
+Step 5 is optional: without `data/processed/essentia_scores.csv`, step 4 uses CLAP for every check and
+skips the CLAP vs Essentia comparison (section 10 of `results/summary.md`).
 
 Sanity checks after step 1: `python scripts/check_audio_features.py` and
 `python scripts/compare_tempo.py` (writes to `results/`). Tests: `pytest`.
@@ -106,7 +110,9 @@ Main result = commented tracks (subset A), per (track, category) cell, with 95% 
 
 ## Current limitations
 
-- No Essentia models yet (genre / mood / instrument classifiers); those checks use CLAP.
+- Essentia (Discogs-EffNet genre / MTG-Jamendo instrument and mood / voice-instrumental classifiers) is
+  integrated but not run yet (`essentia-tensorflow` installs on Linux only, so it runs in Colab); until
+  then the genre / mood / instrument checks use CLAP.
 - Instruments are the weakest CLAP check (ROC-AUC 0.55), probably because many songs contain bass,
   drums or keyboards even when the prompt does not mention them, which makes the reference
   distribution of the percentile calibration noisy (not verified yet).

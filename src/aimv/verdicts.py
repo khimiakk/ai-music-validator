@@ -19,8 +19,15 @@ Checks
 Every row gets a mismatch_score in [0, 1] (higher = more likely a mismatch) for ROC-AUC:
 1 - score_pct for CLAP checks (score_pct for prohibitions), the CLAP probability of the wrong
 answer for the vocal checks, and 0/1 for the rule-based tempo check.
+
+Essentia (optional, data/processed/essentia_scores.csv from notebooks/04_essentia.ipynb): the
+essentia_* requirements can use the Essentia activation of their label instead of CLAP, calibrated
+the same way, and vocal presence can use the Essentia voice score. system_inputs() builds the
+inputs for the systems "clap", "essentia" and "average" (mean of both).
 """
 from __future__ import annotations
+
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -28,7 +35,7 @@ import pandas as pd
 from . import CATEGORIES
 from .audio.clap import track_embedding
 from .audio.tempo import TEMPO_CLASSES, tempo_verdict, tempo_word_verdict
-from .data import PROMPT_TYPE_BY_VERSION
+from .data import PROCESSED_DIR, PROMPT_TYPE_BY_VERSION
 
 VOCAL_TEXTS = ["a song with singing vocals", "instrumental music without vocals"]
 GENDER_TEXTS = ["a song sung by a female vocalist", "a song sung by a male vocalist"]
@@ -37,6 +44,10 @@ TEMPO_COLS = [f"p_{c}" for c in TEMPO_CLASSES]
 RULE_CHECKS = {"tempo", "vocal_presence", "vocal_gender"}  # every other check is a calibrated CLAP check
 MISMATCH_VERDICTS = {"ignored", "changed", "hallucinated"}
 DEFAULT_TAU = 0.5
+
+ESSENTIA_CSV = PROCESSED_DIR / "essentia_scores.csv"
+ESSENTIA_PREFIX = {"essentia_genre": "genre", "essentia_instrument": "instr", "essentia_mood": "mood"}
+SYSTEMS = ["clap", "essentia", "average"]
 
 
 def stack_track_embeddings(window_embs) -> tuple[list[str], np.ndarray]:
@@ -69,6 +80,13 @@ def presence_text(clap_text: str, value: str, polarity: int) -> str:
     return clap_text if polarity > 0 else f"music with {value}"
 
 
+def percentile(s: float, ref: np.ndarray) -> float:
+    """Share of the reference scores below s (ties count half); NaN if s is missing."""
+    if np.isnan(s):
+        return np.nan
+    return float((ref < s).mean() + 0.5 * (ref == s).mean())
+
+
 def clap_percentiles(reqs: pd.DataFrame, track_ids, E, embed_text) -> pd.DataFrame:
     """s and score_pct for every CLAP-check requirement (index = reqs index)."""
     clap = reqs[~reqs["check"].isin(RULE_CHECKS)].copy()
@@ -84,8 +102,91 @@ def clap_percentiles(reqs: pd.DataFrame, track_ids, E, embed_text) -> pd.DataFra
         ref = sims[[pos[t] for t in track_ids if t not in mentioned[(cat, value)]]]
         own = sims[[pos[t] for t in g["track_id"]]]
         clap.loc[g.index, "s"] = own
-        clap.loc[g.index, "score_pct"] = [(ref < s).mean() + 0.5 * (ref == s).mean() for s in own]
+        clap.loc[g.index, "score_pct"] = [percentile(s, ref) for s in own]
     return clap[["text", "s", "score_pct"]]
+
+
+# ---------------------------------------------------------------------------
+# Essentia (optional second audio module)
+# ---------------------------------------------------------------------------
+
+def load_essentia_scores(path=ESSENTIA_CSV, stat: str = "mean") -> pd.DataFrame | None:
+    """Essentia activations per track (time-mean by default), or None if the file does not exist yet.
+
+    The CSV has columns like "genre__Rock---Indie Rock__mean"; the result keeps "genre__Rock---Indie Rock".
+    """
+    path = Path(path)
+    if not path.exists():
+        return None
+    df = pd.read_csv(path).set_index("track_id")
+    cols = [c for c in df.columns if c.endswith(f"__{stat}")]
+    return df[cols].rename(columns=lambda c: c[: -len(stat) - 2])
+
+
+def essentia_track_scores(essentia: pd.DataFrame, check: str, params: dict) -> pd.Series | None:
+    """One Essentia score per track for a requirement, or None if its label is not in the models.
+
+    genre: max over the Discogs-400 labels containing any of params["labels"] (e.g. "Rock---");
+    instruments / mood: the MTG-Jamendo class params["label"].
+    """
+    prefix = ESSENTIA_PREFIX[check]
+    if check == "essentia_genre":
+        cols = [c for c in essentia.columns if c.startswith(f"{prefix}__") and any(s in c for s in params["labels"])]
+        return essentia[cols].max(axis=1) if cols else None
+    col = f"{prefix}__{params['label']}"
+    return essentia[col] if col in essentia.columns else None
+
+
+def essentia_percentiles(reqs: pd.DataFrame, essentia: pd.DataFrame, track_ids) -> pd.DataFrame:
+    """s (Essentia activation) and score_pct for every essentia_* requirement, calibrated like CLAP
+    (percentile among tracks whose prompt does not mention the element). NaN where Essentia has no
+    matching label or no score for the track; those requirements keep their CLAP score."""
+    rows = reqs[reqs["check"].isin(ESSENTIA_PREFIX)]
+    mentioned = reqs.groupby(["category", "value"])["track_id"].agg(set)
+    out = pd.DataFrame(np.nan, index=rows.index, columns=["s", "score_pct"])
+    for (check, cat, value), g in rows.groupby(["check", "category", "value"]):
+        scores = essentia_track_scores(essentia, check, g["params"].iloc[0])
+        if scores is None:
+            continue
+        ref = scores.reindex([t for t in track_ids if t not in mentioned[(cat, value)]]).dropna().to_numpy()
+        own = scores.reindex(g["track_id"]).to_numpy(float)
+        out.loc[g.index, "s"] = own
+        out.loc[g.index, "score_pct"] = [percentile(s, ref) for s in own]
+    return out
+
+
+def add_essentia_voice(evidence: pd.DataFrame, essentia: pd.DataFrame) -> pd.DataFrame:
+    """evidence + p_voice = Essentia voice_instrumental probability of "voice" (NaN if missing)."""
+    ev = evidence.copy()
+    ev["p_voice"] = essentia["voice__voice"].reindex(ev.index) if "voice__voice" in essentia.columns else np.nan
+    return ev
+
+
+def system_inputs(system: str, evidence: pd.DataFrame, clap_scores: pd.DataFrame,
+                  essentia_scores: pd.DataFrame | None = None):
+    """(evidence, scores) for one system:
+
+    clap      CLAP everywhere (the default pipeline)
+    essentia  Essentia score_pct for essentia_* requirements and Essentia p_voice for vocal presence,
+              wherever Essentia has a value; CLAP for everything else
+    average   mean of the CLAP and Essentia score_pct / vocal probability where both exist
+    """
+    ev, scores = evidence.copy(), clap_scores[["s", "score_pct"]].copy()
+    if system == "clap" or essentia_scores is None:
+        return ev, scores
+    ess = essentia_scores.reindex(scores.index)
+    has = ess["score_pct"].notna()
+    p_voice = ev["p_voice"] if "p_voice" in ev.columns else pd.Series(np.nan, index=ev.index)
+    if system == "essentia":
+        scores.loc[has, ["s", "score_pct"]] = ess.loc[has, ["s", "score_pct"]]
+        ev["p_vocals"] = p_voice.fillna(ev["p_vocals"])
+    elif system == "average":
+        scores.loc[has, "score_pct"] = (scores.loc[has, "score_pct"] + ess.loc[has, "score_pct"]) / 2
+        scores.loc[has, "s"] = np.nan  # not comparable across the two models
+        ev["p_vocals"] = ((ev["p_vocals"] + p_voice) / 2).fillna(ev["p_vocals"])
+    else:
+        raise ValueError(f"unknown system {system!r}, expected one of {SYSTEMS}")
+    return ev, scores
 
 
 def clap_verdict(score_pct: float, polarity: int, tau: float = DEFAULT_TAU) -> str:

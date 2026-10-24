@@ -131,3 +131,7 @@ Expert *satisfied* = parsed requirements minus expert ignored/changed records (a
 | experts: share of tracks with a mismatch (no comment = OK) | 64 | 0.664 | 0.664 | 0.000 [-0.094, 0.086] | 0.914 |
 
 Rates, not counts: aspect prompts have ~10.5 requirements, captions ~6.5.
+
+## 10. CLAP vs Essentia vs their average
+
+`data/processed/essentia_scores.csv` not found, so this comparison is skipped. Run `notebooks/04_essentia.ipynb` in Colab and copy the file to `data/processed/`.

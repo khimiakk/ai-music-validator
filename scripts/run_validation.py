@@ -33,15 +33,17 @@ from aimv.data import PROCESSED_DIR, PROJECT_ROOT, load_sunocaps  # noqa: E402
 from aimv.evaluation import (MIN_POSITIVES, binary_metrics, category_metrics, cluster_bootstrap,  # noqa: E402
                              fmt_ci, metrics_with_ci, multiclass_metrics_with_ci, oof_threshold_predictions,
                              with_ci)
-from aimv.verdicts import (DEFAULT_TAU, TEMPO_COLS, all_verdicts, apply_tau, audio_evidence,  # noqa: E402
-                           clap_percentiles, predictions_per_category, softmax_probs,
-                           stack_track_embeddings)
+from aimv.verdicts import (DEFAULT_TAU, ESSENTIA_CSV, ESSENTIA_PREFIX, SYSTEMS, TEMPO_COLS,  # noqa: E402
+                           add_essentia_voice, all_verdicts, apply_tau, audio_evidence, clap_percentiles,
+                           essentia_percentiles, load_essentia_scores, predictions_per_category, softmax_probs,
+                           stack_track_embeddings, system_inputs)
 from aimv.vocab import SUNOCAPS_EMOTIONS  # noqa: E402
 
 RESULTS = PROJECT_ROOT / "results"
 FIGURES = RESULTS / "figures"
 TAUS = np.round(np.arange(0.30, 0.801, 0.05), 2)
 SHOWN_VERDICTS = ["satisfied", "ignored", "changed", "hallucinated"]
+GT_COLS = ["track_id", "category", "original_id", "prompt_type", "gt_mismatch", "gt_source", "gt_needs_review"]
 # chart colours (light theme): surface, text, muted text, grid, categorical slots 1-5
 SURFACE, INK, MUTED, GRID = "#fcfcfb", "#0b0b0b", "#52514e", "#e4e3df"
 SLOTS = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4"]
@@ -247,6 +249,39 @@ def prompt_type_comparison(verdicts, gt_track, n_boot):
     return pd.DataFrame(rows)
 
 
+def compare_systems(inp, track_ids, evidence, clap_scores, class_means, tau, essentia, n_boot):
+    """CLAP vs Essentia vs their average with the same verdict rules, metrics and CIs (+ trivial baseline)."""
+    ess_scores = essentia_percentiles(inp["reqs"], essentia, track_ids)
+    ev_all = add_essentia_voice(evidence, essentia)
+    gt = inp["gt_track"].set_index("track_id")
+    per_cat, track, vocals, all_v = [], [], [], []
+    for system in SYSTEMS:
+        ev, scores = system_inputs(system, ev_all, clap_scores, ess_scores)
+        v = all_verdicts(inp["reqs"], ev, scores, class_means, tau, inp["bpm"])
+        all_v.append(v.assign(system=system))
+        preds = predictions_per_category(v, track_ids).merge(inp["gt_cat"][GT_COLS], on=["track_id", "category"])
+        parts = subsets(preds)
+        for name in ("A_commented", "B_all"):
+            per_cat.append(category_metrics(parts[name], CATEGORIES, n_boot).assign(system=system, subset=name))
+            if system == "clap":  # the trivial baseline does not depend on the audio model
+                cells = parts[name]
+                trivial = cells.assign(pred_mismatch=cells["n_requirements"] > 0, pred_score=cells["n_requirements"])
+                per_cat.append(category_metrics(trivial, CATEGORIES, n_boot).assign(system="trivial", subset=name))
+        t = gt.join(preds.groupby("track_id")["pred_score"].max().rename("score"))
+        for name, part in (("A_commented", t[t["has_comment"]]), ("B_all", t)):
+            y, groups, score = part["any_mismatch"].to_numpy(bool), part["original_id"].to_numpy(), part["score"]
+            pred, _ = oof_threshold_predictions(y, score.to_numpy(float), groups)
+            track.append(dict(system=system, subset=name, **metrics_with_ci(y, pred, score, groups, n_boot)))
+        vv = gt.join(ev["p_vocals"])
+        vocals.append(dict(system=system, **multiclass_metrics_with_ci(
+            vv["vocals_present_gt"].astype(int), (vv["p_vocals"] >= 0.5).astype(int), [0, 1], vv["original_id"], n_boot)))
+    n_ess = int(inp["reqs"]["check"].isin(ESSENTIA_PREFIX).sum())
+    info = dict(tracks=len(essentia), missing_tracks=len(set(track_ids) - set(essentia.index)),
+                essentia_requirements=n_ess, with_essentia_score=int(ess_scores["score_pct"].notna().sum()),
+                with_voice_score=int(ev_all["p_voice"].notna().sum()))
+    return pd.concat(per_cat, ignore_index=True), pd.DataFrame(track), pd.DataFrame(vocals), info, pd.concat(all_v)
+
+
 def paired_row(name, wide, n_boot):
     wide = wide.dropna()
     diff = (wide["aspect_list"] - wide["caption"]).to_numpy()
@@ -359,7 +394,7 @@ def md_table(header, rows) -> str:
 
 
 def write_summary(path, n_boot, tau, per_cat, track, sweep_cv, enough, vocals, n_vocal_sheet, tempo_listen,
-                  emotion, shares, ptype, verdicts):
+                  emotion, shares, ptype, verdicts, systems=None):
     out = ["# Results summary", "",
            f"Model `laion/larger_clap_general` (cached embeddings), tau = {tau}, 95% CIs from a cluster bootstrap "
            f"over original_id ({n_boot} resamples). Subset A = commented tracks (main result), "
@@ -437,6 +472,31 @@ def write_summary(path, n_boot, tau, per_cat, track, sweep_cv, enough, vocals, n
             for _, r in ptype.iterrows()]
     out += [md_table(["measure", "pairs", "aspect list", "caption", "difference (aspect - caption)", "Wilcoxon p"],
                      rows), "", "Rates, not counts: aspect prompts have ~10.5 requirements, captions ~6.5.", ""]
+
+    out += ["## 10. CLAP vs Essentia vs their average", ""]
+    if systems is None:
+        out += [f"`data/processed/{ESSENTIA_CSV.name}` not found, so this comparison is skipped. Run "
+                "`notebooks/04_essentia.ipynb` in Colab and copy the file to `data/processed/`.", ""]
+    else:
+        sys_cat, sys_track, sys_vocals, info = systems
+        out += [f"Essentia scores for {info['tracks']} tracks ({info['missing_tracks']} missing). "
+                f"{info['with_essentia_score']} of {info['essentia_requirements']} `essentia_*` requirements got an "
+                "Essentia score (the rest keep CLAP: label not in the Essentia models or track missing); "
+                f"{info['with_voice_score']} tracks have an Essentia voice score. Same verdict rules, tau and "
+                "calibration for every system; subset A (commented tracks).", ""]
+        a = sys_cat[sys_cat["subset"] == "A_commented"]
+        rows = []
+        for c in enough + ["micro", "macro"]:
+            r = {s: a[(a["system"] == s) & (a["category"] == c)].iloc[0] for s in SYSTEMS + ["trivial"]}
+            rows.append([c, r["clap"]["support"]] + [fmt_ci(r[s], "f1") for s in SYSTEMS + ["trivial"]]
+                        + [fmt_ci(r[s], "roc_auc") for s in SYSTEMS])
+        out += [md_table(["category", "positives", "F1 CLAP", "F1 Essentia", "F1 average", "F1 trivial",
+                          "AUC CLAP", "AUC Essentia", "AUC average"], rows), ""]
+        rows = [[r["subset"], r["system"], fmt_ci(r, "roc_auc"), fmt_ci(r, "f1")] for _, r in sys_track.iterrows()]
+        out += ["Track level (any mismatch):", "", md_table(["subset", "system", "ROC-AUC", "F1"], rows), ""]
+        rows = [[r["system"], fmt_ci(r, "accuracy"), fmt_ci(r, "macro_f1")] for _, r in sys_vocals.iterrows()]
+        out += ["Vocal presence vs `vocals_present_gt` (all 256 tracks):", "",
+                md_table(["system", "accuracy", "macro-F1"], rows), ""]
     path.write_text("\n".join(out))
 
 
@@ -465,8 +525,7 @@ def main():
     verdicts = all_verdicts(inp["reqs"], evidence, clap_scores, class_means, args.tau, inp["bpm"])
     verdicts.assign(params=verdicts["params"].map(lambda p: json.dumps(p) if isinstance(p, dict) else "")).to_csv(
         PROCESSED_DIR / "requirement_verdicts.csv", index=False)
-    gt_cols = ["track_id", "category", "original_id", "prompt_type", "gt_mismatch", "gt_source", "gt_needs_review"]
-    preds = predictions_per_category(verdicts, track_ids).merge(inp["gt_cat"][gt_cols], on=["track_id", "category"])
+    preds = predictions_per_category(verdicts, track_ids).merge(inp["gt_cat"][GT_COLS], on=["track_id", "category"])
     preds.to_csv(PROCESSED_DIR / "predictions_per_category.csv", index=False)
     print(verdicts["verdict"].value_counts().to_string())
 
@@ -502,8 +561,22 @@ def main():
     ptype = prompt_type_comparison(verdicts, inp["gt_track"], args.n_boot)
     ptype.to_csv(RESULTS / "metrics_prompt_type.csv", index=False)
 
+    essentia, systems = load_essentia_scores(), None
+    if essentia is None:
+        print(f"no {ESSENTIA_CSV.name} in data/processed/ - skipping the Essentia comparison "
+              "(run notebooks/04_essentia.ipynb in Colab first)")
+    else:
+        print(f"CLAP vs Essentia vs average ({len(essentia)} tracks with Essentia scores) ...", flush=True)
+        sys_cat, sys_track, sys_vocals, info, sys_verdicts = compare_systems(
+            inp, track_ids, evidence, clap_scores, class_means, args.tau, essentia, args.n_boot)
+        sys_cat.to_csv(RESULTS / "metrics_systems_per_category.csv", index=False)
+        sys_track.to_csv(RESULTS / "metrics_systems_track_level.csv", index=False)
+        sys_vocals.to_csv(RESULTS / "metrics_systems_vocals.csv", index=False)
+        sys_verdicts.drop(columns=["params"]).to_csv(PROCESSED_DIR / "requirement_verdicts_systems.csv", index=False)
+        systems = (sys_cat, sys_track, sys_vocals, info)
+
     write_summary(RESULTS / "summary.md", args.n_boot, args.tau, per_cat, track, sweep_cv, enough, vocals,
-                  n_vocal_sheet, tempo_listen, emotion, shares, ptype, verdicts)
+                  n_vocal_sheet, tempo_listen, emotion, shares, ptype, verdicts, systems)
     print(f"done -> {RESULTS / 'summary.md'}")
 
 
