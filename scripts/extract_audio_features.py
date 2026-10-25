@@ -31,7 +31,7 @@ def main():
     ap.add_argument("--csv", default=str(RAW_CSV))
     ap.add_argument("--audio-dir", default=str(AUDIO_DIR))
     ap.add_argument("--out", default=str(PROCESSED_DIR))
-    ap.add_argument("--model", default="laion/larger_clap_music")
+    ap.add_argument("--model", default="laion/larger_clap_general")
     ap.add_argument("--windows", type=int, default=3, help="evenly spaced 10 s windows; 0 = sliding")
     ap.add_argument("--hop", type=float, default=10.0, help="hop (s) when --windows 0")
     ap.add_argument("--limit", type=int, default=None)

@@ -1,7 +1,7 @@
 """Vocabularies used to turn prompt phrases into checkable requirements.
 
-Each term maps to a category; some carry a hint for which audio check can
-verify it (``CHECK_*``). Terms not covered by a dedicated model fall back to
+Each term maps to a category; the ``*_MAP`` dicts link some terms to a
+dedicated model class. Terms not covered by a dedicated model fall back to
 CLAP zero-shot similarity.
 """
 from __future__ import annotations
@@ -116,12 +116,6 @@ VOCAL_TERMS = [
     "vocables", "lyrics", "a cappella", "acapella", "soprano", "alto", "tenor", "baritone", "falsetto",
     "harmonies", "backing vocals", "beatbox", "spoken word", "opera singer", "yodel",
 ]
-NEGATED_VOCAL_PATTERNS = [
-    r"\binstrumental\b", r"\bno (?:vocals?|voices?|singer|singing|lyrics)\b", r"\bwithout (?:vocals?|voices?|singing|lyrics)\b",
-    r"\bno words\b",
-]
-FEMALE_TERMS = ["female", "woman", "women", "girl", "soprano", "alto"]
-MALE_TERMS = ["male", "man", "men", "boy", "tenor", "baritone"]
 
 OTHER_TERMS = [
     "low quality", "poor quality", "poor audio quality", "low quality audio", "amateur recording", "noisy",

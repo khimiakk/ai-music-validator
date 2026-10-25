@@ -1,10 +1,14 @@
-"""CLAP audio/text embeddings
+"""CLAP audio/text embeddings.
+
+Default model: a LAION CLAP checkpoint trained with additional music data.
 """
 from __future__ import annotations
 
 import numpy as np
 
-DEFAULT_MODEL = "laion/larger_clap_music"
+# laion/larger_clap_music on the HF Hub loads with untrained weights (all norm
+# layers at init, every input gets ~the same embedding), so use the general one
+DEFAULT_MODEL = "laion/larger_clap_general"
 
 
 def _to_numpy(out):
@@ -29,7 +33,9 @@ class ClapScorer:
 
         self.device = device or ("cuda" if torch.cuda.is_available()
                                  else "mps" if torch.backends.mps.is_available() else "cpu")
-        self.model = ClapModel.from_pretrained(model_name).to(self.device).eval()
+        self.model = ClapModel.from_pretrained(model_name).eval()
+        # nn.Module.to moves in place; PreTrainedModel.to is @wraps-decorated, which breaks Pylance's typing
+        torch.nn.Module.to(self.model, self.device)
         self.processor = ClapProcessor.from_pretrained(model_name)
         self.model_name = model_name
         self.sr = self.processor.feature_extractor.sampling_rate

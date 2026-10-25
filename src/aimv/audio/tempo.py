@@ -1,4 +1,8 @@
 """Tempo estimation and a tolerant tempo check (Mustango-style).
+
+The check allows +-8% around the requested range. Half/double tempo is accepted
+only for narrow ranges (an explicit BPM in the prompt, e.g. "120 bpm"), not for
+word ranges like "fast" or "slow", which are already wide.
 """
 from __future__ import annotations
 
@@ -18,7 +22,8 @@ def estimate_tempo(y: np.ndarray, sr: int, max_seconds: float = 120.0) -> dict:
     tempo, beats = librosa.beat.beat_track(onset_envelope=onset_env, sr=sr)
     bpm = float(np.atleast_1d(tempo)[0])
     ibi = np.diff(librosa.frames_to_time(beats, sr=sr))
-    conf = float(max(0.0, 1.0 - ibi.std() / ibi.mean())) if len(ibi) > 2 and ibi.mean() > 0 else 0.0
+    # beat_regularity = how even the beat intervals are; only a rough indicator, not a real confidence
+    conf =float(max(0.0, 1.0 - ibi.std() / ibi.mean())) if len(ibi) > 2 and ibi.mean() > 0 else 0.0
     return {"bpm": bpm, "beat_regularity": conf, "n_beats": int(len(beats))}
 
 
