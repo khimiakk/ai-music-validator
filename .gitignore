@@ -5,7 +5,6 @@ __pycache__/
 .env
 
 data/raw/audio/
-src/aimv/audio/audio_files/
 data/raw/*.csv
 data/interim/
 data/processed/

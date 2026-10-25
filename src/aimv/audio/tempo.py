@@ -1,8 +1,11 @@
-"""Tempo estimation and a tolerant tempo check (Mustango-style).
+"""Tempo estimation and tempo checks.
 
-The check allows +-8% around the requested range. Half/double tempo is accepted
-only for narrow ranges (an explicit BPM in the prompt, e.g. "120 bpm"), not for
-word ranges like "fast" or "slow", which are already wide.
+* ``tempo_verdict``      explicit BPM in the prompt (e.g. "120 bpm"): Mustango-style
+  check with +-8% tolerance; half/double tempo is accepted for these narrow ranges.
+* ``tempo_word_verdict`` tempo words ("slow", "fast", ...): CLAP zero-shot over
+  slow / medium / fast. The librosa beat tracker is pulled towards ~120 BPM and
+  could not separate fast from slow prompts (ROC-AUC 0.48, CLAP 0.89; see
+  scripts/compare_tempo.py).
 """
 from __future__ import annotations
 
@@ -10,26 +13,66 @@ import numpy as np
 
 TEMPO_SR = 22_050
 
+TEMPO_CLASSES = ["slow", "medium", "fast"]
 
-def estimate_tempo(y: np.ndarray, sr: int, max_seconds: float = 120.0) -> dict:
+# tempo word from the prompt (see vocab.TEMPO_WORDS) -> tempo classes that satisfy it
+TEMPO_WORD_CLASSES = {
+    "very slow": ["slow"], "slow": ["slow"], "downtempo": ["slow"],
+    "medium": ["medium"], "moderate": ["medium"], "mid-tempo": ["medium"],
+    "medium fast": ["medium", "fast"], "medium-fast": ["medium", "fast"],
+    "uptempo": ["fast"], "up-tempo": ["fast"], "fast": ["fast"], "very fast": ["fast"], "quick": ["fast"],
+}
+
+
+def _onset_envelope(y: np.ndarray, sr: int, max_seconds: float) -> np.ndarray:
     import librosa
 
     y = y[: int(max_seconds * sr)]
     if sr != TEMPO_SR:
         y = librosa.resample(y, orig_sr=sr, target_sr=TEMPO_SR)
-        sr = TEMPO_SR
-    onset_env = librosa.onset.onset_strength(y=y, sr=sr)
-    tempo, beats = librosa.beat.beat_track(onset_envelope=onset_env, sr=sr)
+    return librosa.onset.onset_strength(y=y, sr=TEMPO_SR)
+
+
+def estimate_tempo(y: np.ndarray, sr: int, max_seconds: float = 120.0) -> dict:
+    import librosa
+
+    onset_env = _onset_envelope(y, sr, max_seconds)
+    tempo, beats = librosa.beat.beat_track(onset_envelope=onset_env, sr=TEMPO_SR)
     bpm = float(np.atleast_1d(tempo)[0])
-    ibi = np.diff(librosa.frames_to_time(beats, sr=sr))
+    ibi = np.diff(librosa.frames_to_time(beats, sr=TEMPO_SR))
     # beat_regularity = how even the beat intervals are; only a rough indicator, not a real confidence
-    conf =float(max(0.0, 1.0 - ibi.std() / ibi.mean())) if len(ibi) > 2 and ibi.mean() > 0 else 0.0
+    conf = float(max(0.0, 1.0 - ibi.std() / ibi.mean())) if len(ibi) > 2 and ibi.mean() > 0 else 0.0
     return {"bpm": bpm, "beat_regularity": conf, "n_beats": int(len(beats))}
+
+
+def estimate_tempo_flat_prior(y: np.ndarray, sr: int, max_seconds: float = 120.0) -> float:
+    """librosa tempo with a flat prior over 40-220 BPM (the default prior is centred on 120 BPM)."""
+    import librosa
+    from scipy import stats
+
+    onset_env = _onset_envelope(y, sr, max_seconds)
+    tempo = librosa.feature.tempo(onset_envelope=onset_env, sr=TEMPO_SR, prior=stats.uniform(40, 180))
+    return float(tempo[0])
+
+
+def tempo_word_verdict(probs, word: str) -> tuple[str, str]:
+    """Verdict for a tempo word. ``probs``: CLAP softmax over TEMPO_CLASSES (slow, medium, fast).
+
+    satisfied if the requested class has the highest probability, otherwise changed.
+    """
+    if word not in TEMPO_WORD_CLASSES:
+        return "unknown", f"unknown tempo word {word!r}"
+    top = TEMPO_CLASSES[int(np.argmax(probs))]
+    if top in TEMPO_WORD_CLASSES[word]:
+        return "satisfied", f"CLAP top class {top}"
+    return "changed", f"CLAP top class {top}, prompt asks {word}"
 
 
 def tempo_verdict(bpm: float, bpm_min: float, bpm_max: float, tol: float = 0.08,
                   allow_octave: bool | None = None) -> tuple[str, str]:
-    """Return (verdict, detail). verdict in {satisfied, changed, unknown}.
+    """Verdict for an explicit BPM requirement only (tempo words use tempo_word_verdict).
+
+    Return (verdict, detail). verdict in {satisfied, changed, unknown}.
     """
     if bpm is None or not np.isfinite(bpm) or bpm <= 0:
         return "unknown", "no tempo estimate"

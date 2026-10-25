@@ -9,9 +9,6 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DATA_DIR = PROJECT_ROOT / "data"
 RAW_CSV = DATA_DIR / "raw" / "SunoCaps_dataset.csv"
 AUDIO_DIR = DATA_DIR / "raw" / "audio"
-if not AUDIO_DIR.exists():
-    # the SunoCaps mp3s are currently kept next to the audio code
-    AUDIO_DIR = PROJECT_ROOT / "src" / "aimv" / "audio" / "audio_files"
 PROCESSED_DIR = DATA_DIR / "processed"
 INTERIM_DIR = DATA_DIR / "interim"
 

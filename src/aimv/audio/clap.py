@@ -1,14 +1,16 @@
 """CLAP audio/text embeddings.
 
-Default model: a LAION CLAP checkpoint trained with additional music data.
+Default model: laion/larger_clap_general, a LAION CLAP checkpoint trained with
+additional music data. The HF checkpoint laion/larger_clap_music produced
+near-identical embeddings in our setup (tested with two transformers versions),
+so we use the general LAION CLAP; the original music checkpoint via the
+laion_clap package is a later check.
 """
 from __future__ import annotations
 
 import numpy as np
 
-# laion/larger_clap_music on the HF Hub loads with untrained weights (all norm
-# layers at init, every input gets ~the same embedding), so use the general one
-DEFAULT_MODEL = "laion/larger_clap_general"
+DEFAULT_MODEL = "laion/larger_clap_general"  # not larger_clap_music, see the module docstring
 
 
 def _to_numpy(out):

@@ -21,6 +21,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
+from aimv.audio.clap import DEFAULT_MODEL  # noqa: E402
 from aimv.audio.io import load_audio, windows  # noqa: E402
 from aimv.audio.tempo import estimate_tempo  # noqa: E402
 from aimv.data import AUDIO_DIR, PROCESSED_DIR, RAW_CSV, audio_path, load_sunocaps  # noqa: E402
@@ -31,7 +32,7 @@ def main():
     ap.add_argument("--csv", default=str(RAW_CSV))
     ap.add_argument("--audio-dir", default=str(AUDIO_DIR))
     ap.add_argument("--out", default=str(PROCESSED_DIR))
-    ap.add_argument("--model", default="laion/larger_clap_general")
+    ap.add_argument("--model", default=DEFAULT_MODEL)
     ap.add_argument("--windows", type=int, default=3, help="evenly spaced 10 s windows; 0 = sliding")
     ap.add_argument("--hop", type=float, default=10.0, help="hop (s) when --windows 0")
     ap.add_argument("--limit", type=int, default=None)

@@ -1,8 +1,8 @@
-"""Tempo estimation on synthetic click tracks + the tolerant tempo check."""
+"""Tempo estimation on synthetic click tracks + the tempo checks."""
 import librosa
 import pytest
 
-from aimv.audio.tempo import estimate_tempo, tempo_verdict
+from aimv.audio.tempo import estimate_tempo, tempo_verdict, tempo_word_verdict
 
 SR = 48_000  # same rate the extraction script passes in (CLAP rate)
 
@@ -32,3 +32,16 @@ def test_tempo_verdict_octave():
     verdict, detail = tempo_verdict(60, 118, 122)
     assert verdict == "satisfied"
     assert detail == "octave_double"
+
+
+# probs are CLAP probabilities for (slow, medium, fast)
+@pytest.mark.parametrize("probs, word, expected", [
+    ([0.1, 0.2, 0.7], "fast", "satisfied"),
+    ([0.1, 0.2, 0.7], "slow", "changed"),
+    ([0.6, 0.3, 0.1], "slow", "satisfied"),
+    ([0.2, 0.5, 0.3], "medium fast", "satisfied"),
+    ([0.2, 0.5, 0.3], "uptempo", "changed"),
+    ([0.2, 0.5, 0.3], "groovy", "unknown"),
+])
+def test_tempo_word_verdict(probs, word, expected):
+    assert tempo_word_verdict(probs, word)[0] == expected
