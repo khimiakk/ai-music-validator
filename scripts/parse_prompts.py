@@ -4,6 +4,7 @@
     parse_prompts.py --examples   # also print 8 random prompts next to their requirements
 
     data/processed/requirements.csv   one row per (track, requirement); params as a JSON string
+    results/prompt_coverage.csv       coverage vs experts per category (+ _records.csv per record)
 
 Coverage vs experts uses data/processed/mismatch_records.csv (run build_ground_truth.py first):
     a) category level: the track has any requirement of the expert record's category
@@ -28,8 +29,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from aimv import CATEGORIES, vocab  # noqa: E402
 from aimv.audio.tempo import TEMPO_WORD_CLASSES  # noqa: E402
-from aimv.data import PROCESSED_DIR, load_sunocaps  # noqa: E402
+from aimv.data import PROCESSED_DIR, PROJECT_ROOT, load_sunocaps  # noqa: E402
 from aimv.prompt_parsing import parse_dataframe  # noqa: E402
+
+RESULTS_DIR = PROJECT_ROOT / "results"
 
 # expert expectations that no prompt-word parser can produce (not counted as parser misses)
 NOT_FROM_PROMPT_WORDS = {
@@ -133,6 +136,9 @@ def print_coverage(df: pd.DataFrame, reqs: pd.DataFrame, records: pd.DataFrame):
     summary.loc["all"] = [len(cov), cov["category_hit"].mean(), cov["element_hit"].mean()]
     summary[["category_level", "element_level"]] = (summary[["category_level", "element_level"]] * 100).round(1)
     print(summary.to_string())
+    RESULTS_DIR.mkdir(exist_ok=True)
+    summary.rename_axis("category").reset_index().to_csv(RESULTS_DIR / "prompt_coverage.csv", index=False)
+    cov.to_csv(RESULTS_DIR / "prompt_coverage_records.csv", index=False)
 
     misses = cov[~cov["element_hit"]]
     for title, part in (("parser misses (a key word is in the prompt)", misses[misses["in_prompt"]]),

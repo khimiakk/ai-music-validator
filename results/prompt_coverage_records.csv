@@ -1,0 +1,198 @@
+track_id,category,expected,category_hit,element_hit,in_prompt,parsed
+-0Gj8-vB1q4_1,instruments,strings,True,True,True,"piano, strings"
+-0Gj8-vB1q4_1,other,low recording quality,True,True,True,low quality
+-0Gj8-vB1q4_2,instruments,strings,True,True,True,"piano, strings"
+-0Gj8-vB1q4_2,other,low recording quality,True,True,True,low quality
+-0Gj8-vB1q4_3,instruments,strings,True,True,True,"piano, strings"
+-0Gj8-vB1q4_4,instruments,strings,True,True,True,"piano, strings"
+-0Gj8-vB1q4_4,vocals,female vocals,True,True,True,"female vocals, vocals"
+-1UWSisR2zo_1,other,low recording quality,True,True,True,"ambient noise, crowd, high gain volume, hissing tones, live performance, noise, poor audio quality"
+-1UWSisR2zo_1,other,ambient noise,True,True,True,"ambient noise, crowd, high gain volume, hissing tones, live performance, noise, poor audio quality"
+-1UWSisR2zo_2,other,low recording quality,True,True,True,"ambient noise, crowd, high gain volume, hissing tones, live performance, noise, poor audio quality"
+-1UWSisR2zo_2,other,ambient noise,True,True,True,"ambient noise, crowd, high gain volume, hissing tones, live performance, noise, poor audio quality"
+-1UWSisR2zo_3,vocals,male vocals,True,True,True,"male vocals, vocals"
+-1UWSisR2zo_4,vocals,male vocals,True,True,True,"male vocals, vocals"
+-5xOcMJpTUk_2,vocals,male vocals,True,True,True,"male vocals, vocals"
+-5xOcMJpTUk_3,vocals,male vocals,True,True,True,"male vocals, vocals"
+-88me9bBzrk_1,genre,Indian classical style,True,False,False,hindi
+-88me9bBzrk_2,genre,Indian classical style,True,False,False,hindi
+-88me9bBzrk_3,genre,Indian classical style,False,False,False,-
+-88me9bBzrk_4,genre,Indian classical style,False,False,False,-
+-ByoSbgzr4M_1,vocals,instrumental only,True,True,True,vocals
+-ByoSbgzr4M_2,vocals,instrumental only,True,True,True,vocals
+-ByoSbgzr4M_3,vocals,instrumental only,True,True,True,vocals
+-ByoSbgzr4M_4,vocals,instrumental only,True,True,True,vocals
+-M-6VinyMiY_1,other,low recording quality,True,True,True,low quality
+-M-6VinyMiY_2,other,low recording quality,True,True,True,low quality
+-M-6VinyMiY_3,other,low recording quality,True,True,True,low quality
+-M-6VinyMiY_4,other,low recording quality,True,True,True,low quality
+-Q9MTRXS4bE_1,vocals,instrumental only,True,True,True,vocals
+-Q9MTRXS4bE_2,vocals,instrumental only,True,True,True,vocals
+-Q9MTRXS4bE_3,vocals,instrumental only,True,True,True,vocals
+-Q9MTRXS4bE_4,vocals,instrumental only,True,True,True,vocals
+-Vo4CAMX26U_1,other,low recording quality,True,True,True,"birds chirping, low quality, nature atmosphere, sound effect, water flowing"
+-Vo4CAMX26U_1,other,nature sounds,True,True,True,"birds chirping, low quality, nature atmosphere, sound effect, water flowing"
+-Vo4CAMX26U_2,other,low recording quality,True,True,True,"birds chirping, low quality, nature atmosphere, sound effect, water flowing"
+-Vo4CAMX26U_2,other,nature sounds,True,True,True,"birds chirping, low quality, nature atmosphere, sound effect, water flowing"
+-Vo4CAMX26U_4,other,low recording quality,True,True,True,"birds, low quality, nature, sound effects, water"
+-Vo4CAMX26U_4,other,nature sounds,True,True,True,"birds, low quality, nature, sound effects, water"
+-YIT4HBM__g_1,other,background chatter/noise,True,True,True,"chatter, high notes, melodic, rustling, seconds, whirring"
+-YIT4HBM__g_2,other,background chatter/noise,True,True,True,"chatter, high notes, melodic, rustling, seconds, whirring"
+-YIT4HBM__g_3,other,background chatter/noise,True,False,False,"people talking, rustling, whirring"
+-YIT4HBM__g_4,other,background chatter/noise,True,False,False,"people talking, rustling, whirring"
+-cQ-jUTEgck_3,other,live performance,True,True,True,live performance
+-cQ-jUTEgck_4,other,live performance,True,True,True,live performance
+-nlkWWphiaM_1,other,noisy recording,True,True,True,"live performance, low quality, mono, noisy"
+-nlkWWphiaM_2,vocals,male vocals,True,True,True,"male vocals, vocals"
+-nlkWWphiaM_2,other,noisy recording,True,True,True,"live performance, low quality, mono, noisy"
+-nlkWWphiaM_3,vocals,male vocals,True,True,True,"male vocals, vocals"
+-nlkWWphiaM_3,other,noisy recording,True,False,False,"live performance, low quality"
+-nlkWWphiaM_4,vocals,male vocals,True,True,True,"male vocals, vocals"
+-nlkWWphiaM_4,other,noisy recording,True,False,False,"live performance, low quality"
+-r7iz-9v9bA_4,vocals,female vocals (vocables),True,True,True,"female vocals, lyrics, vocables, vocals"
+-tmY1GEH3_Y_1,vocals,male vocals,True,True,True,"male vocals, vocals"
+-tmY1GEH3_Y_2,vocals,male vocals,True,True,True,"male vocals, vocals"
+-tmY1GEH3_Y_3,vocals,male vocals,True,True,True,"male vocals, vocals"
+-tmY1GEH3_Y_4,vocals,male vocals,True,True,True,"male vocals, vocals"
+00M9FhCet6s_1,vocals,male vocals,True,True,True,"male vocals, vocals"
+00M9FhCet6s_3,vocals,male vocals,True,True,True,"backing vocals, male vocals, vocals"
+03z0rpIkm5g_1,other,low recording quality,True,True,True,"low quality, mono, noisy"
+03z0rpIkm5g_2,other,low recording quality,True,True,True,"low quality, mono, noisy"
+03z0rpIkm5g_3,other,low recording quality,True,True,True,low quality
+03z0rpIkm5g_4,other,low recording quality,True,True,True,low quality
+07-3grCQ8EU_1,vocals,instrumental only,True,True,True,vocals
+07-3grCQ8EU_1,genre,polish folk music,True,True,True,"dance, folk, wedding music"
+07-3grCQ8EU_2,vocals,instrumental only,True,True,True,vocals
+07-3grCQ8EU_2,genre,polish folk music,True,True,True,"dance, folk, wedding music"
+07-3grCQ8EU_3,vocals,instrumental only,True,True,True,vocals
+07-3grCQ8EU_3,genre,polish folk music,True,True,True,folk
+07-3grCQ8EU_4,vocals,instrumental only,True,True,True,vocals
+07-3grCQ8EU_4,genre,polish folk music,True,True,True,folk
+0Gxn9FtaJFc_1,vocals,vocals,True,True,True,"male vocals, vocals"
+0Gxn9FtaJFc_2,vocals,vocals,True,True,True,"male vocals, vocals"
+0Gxn9FtaJFc_3,vocals,vocals,True,True,True,"male vocals, vocals"
+0Gxn9FtaJFc_3,instruments,piano and synth,True,True,True,"bass guitar, piano, synth"
+0Gxn9FtaJFc_4,vocals,vocals,True,True,True,"male vocals, vocals"
+0Gxn9FtaJFc_4,instruments,piano and synth,True,True,True,"bass guitar, piano, synth"
+0JbGxIR8JTk_1,genre,afrobeat,True,True,True,"african, afrobeat, caribbean"
+0JbGxIR8JTk_2,genre,afrobeat,True,True,True,"african, afrobeat, caribbean"
+0LLlcPiatiU_1,other,prompted noises / sound effects,True,True,False,"camera clicking tones, camera flash sounds, end credits music background, song fade"
+0LLlcPiatiU_2,other,prompted noises / sound effects,True,True,False,"camera clicking tones, camera flash sounds, end credits music background, song fade"
+0LLlcPiatiU_3,vocals,vocals,True,True,True,"male vocals, vocals"
+0LLlcPiatiU_4,vocals,vocals,True,True,True,"male vocals, vocals"
+0QAaln-hjPw_1,vocals,male vocals,True,True,True,"male vocals, vocals"
+0QAaln-hjPw_1,other,amateur recording,True,True,True,amateur recording
+0QAaln-hjPw_2,vocals,male vocals,True,True,True,"male vocals, vocals"
+0QAaln-hjPw_2,other,amateur recording,True,True,True,amateur recording
+0VjPCd62oKg_1,other,water sounds,True,True,True,"animal sounds, animated song, duck song, ducks, learning about animals, mind stimulating, song end, water"
+0VjPCd62oKg_1,other,duck sounds,True,True,True,"animal sounds, animated song, duck song, ducks, learning about animals, mind stimulating, song end, water"
+0VjPCd62oKg_2,other,water sounds,True,True,True,"animal sounds, animated song, duck song, ducks, learning about animals, mind stimulating, song end, water"
+0VjPCd62oKg_2,other,duck sounds,True,True,True,"animal sounds, animated song, duck song, ducks, learning about animals, mind stimulating, song end, water"
+0VjPCd62oKg_3,other,water sounds,True,True,True,"ducks, water"
+0VjPCd62oKg_3,other,duck sounds,True,True,True,"ducks, water"
+0VjPCd62oKg_4,other,water sounds,True,True,True,"ducks, water"
+0VjPCd62oKg_4,other,duck sounds,True,True,True,"ducks, water"
+0abzD7hBTRk_1,vocals,beatbox,True,True,False,"beatbox, male vocals, rap, vocals"
+0abzD7hBTRk_2,vocals,beatbox,True,True,False,"beatbox, male vocals, rap, vocals"
+0abzD7hBTRk_3,vocals,beatbox,True,True,False,"beatbox, male vocals, vocals"
+0abzD7hBTRk_4,vocals,beatbox,True,True,False,"beatbox, male vocals, vocals"
+0dPx94RPy2M_1,vocals,instrumental only,True,True,True,vocals
+0dPx94RPy2M_2,vocals,instrumental only,True,True,True,vocals
+0hfU27A6tus_1,instruments,irish bouzouki,True,True,True,"banjo, guitar, irish bouzouki, mandolin"
+0hfU27A6tus_2,instruments,irish bouzouki,True,True,True,"banjo, guitar, irish bouzouki, mandolin"
+0hfU27A6tus_3,instruments,irish bouzouki,True,True,True,"banjo, guitar, mandolin"
+0hfU27A6tus_4,instruments,irish bouzouki,True,True,True,"banjo, guitar, mandolin"
+0khKvVDyYV4_1,other,low recording quality,True,True,True,"echoing female exhale sound, low quality, popping sounds"
+0khKvVDyYV4_2,other,low recording quality,True,True,True,"echoing female exhale sound, low quality, popping sounds"
+0khKvVDyYV4_3,other,low recording quality,True,True,True,low quality
+0khKvVDyYV4_4,other,low recording quality,True,True,True,low quality
+0soVCtJgDTk_1,other,low recording quality,True,True,True,"high pitched down sweeps, low quality, sound effects"
+0soVCtJgDTk_2,other,low recording quality,True,True,True,"high pitched down sweeps, low quality, sound effects"
+0soVCtJgDTk_3,other,low recording quality,True,True,True,low quality
+0soVCtJgDTk_4,other,low recording quality,True,True,True,low quality
+0wYi8B9PXDY_1,instruments,no instruments (a cappella),True,True,False,instruments
+0wYi8B9PXDY_1,vocals,humming,True,True,True,"humming, male vocals, vocals"
+0wYi8B9PXDY_2,instruments,no instruments (a cappella),True,True,False,instruments
+0wYi8B9PXDY_2,vocals,humming,True,True,True,"humming, male vocals, vocals"
+0wYi8B9PXDY_3,instruments,no instruments (a cappella),False,False,False,-
+0wYi8B9PXDY_3,vocals,humming,True,True,False,"humming, male vocals, vocals"
+0wYi8B9PXDY_3,vocals,male vocals,True,True,True,"humming, male vocals, vocals"
+0wYi8B9PXDY_4,instruments,no instruments (a cappella),False,False,False,-
+0wYi8B9PXDY_4,vocals,humming,True,True,False,"humming, male vocals, vocals"
+0wYi8B9PXDY_4,vocals,male vocals,True,True,True,"humming, male vocals, vocals"
+11D0JdB7_4k_1,instruments,didgeridoo,True,True,True,"didgeridoo, other instruments"
+11D0JdB7_4k_2,instruments,didgeridoo,True,True,True,"didgeridoo, other instruments"
+11D0JdB7_4k_3,instruments,didgeridoo,True,True,True,"bass, didgeridoo"
+11D0JdB7_4k_4,instruments,didgeridoo,True,True,True,"bass, didgeridoo"
+19-GI2LzOtc_1,other,low recording quality,True,True,True,"low quality, noisy"
+19-GI2LzOtc_2,other,low recording quality,True,True,True,"low quality, noisy"
+19-GI2LzOtc_3,other,low recording quality,True,True,True,low quality
+19-GI2LzOtc_4,other,low recording quality,True,True,True,low quality
+1JwoLPCIGhs_1,other,low recording quality,True,True,True,"cover, low quality, noisy"
+1JwoLPCIGhs_3,other,low recording quality,True,True,True,low quality
+1OIfQHKnAcw_3,vocals,male vocals,True,True,True,"male vocals, vocals"
+1OIfQHKnAcw_4,vocals,male vocals,True,True,True,"male vocals, vocals"
+1QSD-dzEv7Y_1,instruments,bansuri flute,True,True,True,"bansuri flute, bass, flute, piano"
+1QSD-dzEv7Y_2,instruments,bansuri flute,True,True,True,"bansuri flute, bass, flute, piano"
+1QSD-dzEv7Y_3,instruments,bansuri flute,True,True,True,"bansuri flute, bass, flute, piano"
+1QSD-dzEv7Y_4,instruments,bansuri flute,True,True,True,"bansuri flute, bass, flute, piano"
+1SqihV_DnEg_1,instruments,xylophone,True,True,True,"bass guitar, xylophone"
+1SqihV_DnEg_2,instruments,xylophone,True,True,True,"bass guitar, xylophone"
+1SqihV_DnEg_3,instruments,xylophone,True,True,True,"bass guitar, xylophone"
+1SqihV_DnEg_4,instruments,xylophone,True,True,True,"bass guitar, xylophone"
+1W2FOzSXsxs_1,other,low recording quality,True,True,True,"amateur recording, low quality audio, minimal instruments, story-telling mood"
+1W2FOzSXsxs_2,other,low recording quality,True,True,True,"amateur recording, low quality audio, minimal instruments, story-telling mood"
+1W2FOzSXsxs_3,other,low recording quality,True,True,True,low quality audio
+1W2FOzSXsxs_4,vocals,female vocals,True,True,True,"female vocals, vocals"
+1_YHHL_t2GI_2,other,low recording quality,True,True,True,"clapping, low quality, mono, noisy, playback, shoe tapping"
+1_YHHL_t2GI_3,other,low recording quality,True,True,True,"clapping, low quality"
+1_YHHL_t2GI_4,other,low recording quality,True,True,True,"clapping, low quality"
+1gDNqOQFopY_1,vocals,no words (vocables only),True,True,True,"lyrics, male vocals, vocals, yodel"
+1gDNqOQFopY_2,vocals,no words (vocables only),True,True,True,"lyrics, male vocals, vocals, yodel"
+1gDNqOQFopY_3,vocals,no words (vocables only),True,True,True,"lyrics, male vocals, vocals, yodel"
+1gDNqOQFopY_4,vocals,no words (vocables only),True,True,True,"lyrics, male vocals, vocals, yodel"
+1j13NdQiw8c_1,other,people talking and clapping,True,True,True,"breeze, cheering, clapping, fresh, nature, people talking, simple vivacious"
+1j13NdQiw8c_2,other,people talking and clapping,True,True,True,"breeze, cheering, clapping, fresh, nature, people talking, simple vivacious"
+1j13NdQiw8c_3,instruments,harmonica,True,True,True,"bass, drums, harmonica, keyboard"
+1j13NdQiw8c_4,instruments,harmonica,True,True,True,"bass, drums, harmonica, keyboard"
+1l7BjFDQLUM_1,vocals,no singer,True,True,True,vocals
+1l7BjFDQLUM_2,vocals,no singer,True,True,True,vocals
+1l7BjFDQLUM_3,vocals,no singer,True,True,True,vocals
+1l7BjFDQLUM_4,vocals,no singer,True,True,True,vocals
+1y1lEOGBcWM_1,other,low recording quality,True,True,True,low quality
+1y1lEOGBcWM_2,other,low recording quality,True,True,True,low quality
+1y1lEOGBcWM_3,other,low recording quality,True,True,True,low quality
+1y1lEOGBcWM_4,other,low recording quality,True,True,True,low quality
+20Vh6z6Ie0E_1,other,live performance,True,True,True,"live performance, snaps"
+20Vh6z6Ie0E_2,other,live performance,True,True,True,"live performance, snaps"
+20Vh6z6Ie0E_3,instruments,strings,True,True,True,"bass, piano, strings"
+20Vh6z6Ie0E_4,instruments,strings,True,True,True,"bass, piano, strings"
+25RWrqQol7Y_3,other,glass shattering,True,True,True,"glass shattering, sound effects"
+25RWrqQol7Y_4,other,glass shattering,True,True,True,"glass shattering, sound effects"
+2G4lyzAZ1vk_1,other,amateur recording,True,True,True,amateur recording
+2G4lyzAZ1vk_2,other,amateur recording,True,True,True,amateur recording
+2G4lyzAZ1vk_3,other,amateur recording,False,False,False,-
+2G4lyzAZ1vk_4,other,amateur recording,False,False,False,-
+2Ic1zm9mBjk_1,genre,Hindustani classical,True,True,True,"classical, hindustani, indian"
+2Ic1zm9mBjk_1,instruments,sitar,True,True,True,"percussion, sitar, tabla"
+2Ic1zm9mBjk_2,genre,Hindustani classical,True,True,True,"classical, hindustani, indian"
+2Ic1zm9mBjk_2,instruments,sitar,True,True,True,"percussion, sitar, tabla"
+2Ic1zm9mBjk_3,genre,Hindustani classical,True,False,False,indian
+2Ic1zm9mBjk_4,genre,Hindustani classical,True,False,False,indian
+2Q20hVyYjBM_3,instruments,accordion,True,True,True,accordion
+2Q20hVyYjBM_4,instruments,accordion,True,True,True,accordion
+2ShO1jZYZeA_1,vocals,instrumental only,True,True,True,vocals
+2ShO1jZYZeA_2,vocals,instrumental only,True,True,True,vocals
+2ShO1jZYZeA_3,vocals,instrumental only,False,False,False,-
+2ShO1jZYZeA_4,vocals,instrumental only,False,False,False,-
+2VFVe0RCn7g_1,other,amateur recording,True,True,True,"amateur recording, finger tapping"
+2VFVe0RCn7g_1,genre,classical melody,True,True,True,classical
+2VFVe0RCn7g_2,other,amateur recording,True,True,True,"amateur recording, finger tapping"
+2VFVe0RCn7g_2,genre,classical melody,True,True,True,classical
+2VFVe0RCn7g_3,other,amateur recording,True,True,True,"amateur recording, distorted"
+2VFVe0RCn7g_3,genre,classical melody,True,True,True,classical
+2VFVe0RCn7g_4,other,amateur recording,True,True,True,"amateur recording, distorted"
+2VFVe0RCn7g_4,genre,classical melody,True,True,True,classical
+2ZfthfWQowE_1,genre,prompted style,True,True,False,african
+2ZfthfWQowE_2,genre,prompted style,True,True,False,african
+2ZfthfWQowE_4,instruments,woodwinds and violins,True,True,True,"drums, horns, string, violins, woodwinds"

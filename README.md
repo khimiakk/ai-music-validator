@@ -7,6 +7,10 @@ Data: [SunoCaps](https://www.kaggle.com/datasets/miguelcivit/sunocaps), 256 Suno
 64 MusicCaps prompts × 4 versions (`_1`/`_2` generated from the aspect list, `_3`/`_4` from the
 caption), with expert comments about where a track does not match its prompt.
 
+**Midterm:** results notebook [`notebooks/03_first_results.ipynb`](notebooks/03_first_results.ipynb) ·
+status, what didn't work and the plan until the final [`docs/midterm_status.md`](docs/midterm_status.md) ·
+all metric tables [`results/summary.md`](results/summary.md)
+
 ## What it does
 
 1. Parse each prompt into checkable requirements in 6 categories:

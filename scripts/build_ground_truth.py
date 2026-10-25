@@ -93,6 +93,9 @@ def main():
     df = load_sunocaps()
     records = build_mismatch_records(df)
     per_category, per_track = build_ground_truth(df, records)
+    # keep the prompt and the comment next to the labels (used by notebook 03)
+    per_track = per_track.merge(df[["track_id", "actual_prompt", "Comments"]], on="track_id").rename(
+        columns={"Comments": "expert_comment"})
 
     PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
     records.to_csv(PROCESSED_DIR / "mismatch_records.csv", index=False)
