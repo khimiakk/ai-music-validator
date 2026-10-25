@@ -97,6 +97,20 @@ def category_metrics(cells: pd.DataFrame, categories, n_boot=N_BOOT, seed=0) -> 
     return pd.DataFrame(rows)
 
 
+def paired_difference(y, pred_a, score_a, pred_b, score_b, groups, n_boot=N_BOOT, seed=0) -> dict:
+    """System b minus system a on the same rows: F1 and ROC-AUC differences with a paired cluster
+    bootstrap (both systems are scored on the same resamples)."""
+    y, pred_a, pred_b = np.asarray(y, bool), np.asarray(pred_a, bool), np.asarray(pred_b, bool)
+    score_a, score_b = np.asarray(score_a, float), np.asarray(score_b, float)
+
+    def stats(i):
+        a, b = binary_metrics(y[i], pred_a[i], score_a[i]), binary_metrics(y[i], pred_b[i], score_b[i])
+        return {"f1_diff": b["f1"] - a["f1"], "roc_auc_diff": b["roc_auc"] - a["roc_auc"]}
+
+    boot = cluster_bootstrap(stats, groups, n_boot, seed)
+    return with_ci(stats(np.arange(len(y))), boot, ["f1_diff", "roc_auc_diff"])
+
+
 def best_f1_threshold(y, score) -> float:
     """Threshold (predict score >= t) with the highest F1 on these rows."""
     y = np.asarray(y, bool)

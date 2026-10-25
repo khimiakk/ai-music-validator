@@ -2,7 +2,8 @@
 import numpy as np
 import pytest
 
-from aimv.evaluation import binary_metrics, cluster_bootstrap, metrics_with_ci, oof_threshold_predictions
+from aimv.evaluation import (binary_metrics, cluster_bootstrap, metrics_with_ci, oof_threshold_predictions,
+                             paired_difference)
 
 
 def test_binary_metrics():
@@ -35,3 +36,15 @@ def test_oof_threshold_predictions():
     score = y * 0.8 + 0.1
     pred, thresholds = oof_threshold_predictions(y, score, groups=np.arange(20) // 2)
     assert len(thresholds) == 5 and (pred == y.astype(bool)).all()
+
+
+def test_paired_difference():
+    rng = np.random.default_rng(0)
+    y = rng.integers(0, 2, 200).astype(bool)
+    noisy = y + rng.normal(0, 1.0, 200)  # weak system
+    sharp = y + rng.normal(0, 0.2, 200)  # strong system
+    groups = np.arange(200) // 4
+    same = paired_difference(y, noisy > 0.5, noisy, noisy > 0.5, noisy, groups, n_boot=100)
+    assert same["f1_diff"] == 0 and same["roc_auc_diff_lo"] == 0 and same["roc_auc_diff_hi"] == 0
+    better = paired_difference(y, noisy > 0.5, noisy, sharp > 0.5, sharp, groups, n_boot=200)
+    assert better["roc_auc_diff"] > 0 and better["roc_auc_diff_lo"] > 0  # b - a, clearly above 0

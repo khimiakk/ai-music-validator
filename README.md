@@ -49,7 +49,7 @@ data/raw/audio/<track_id>.mp3     # 256 files; subfolders are fine, aimv.data.au
 | 2. expert ground truth | `python scripts/build_ground_truth.py` (`--review` lists drafts) | done; 62 of 213 records still need review |
 | 3. prompt requirements | `python scripts/parse_prompts.py` (`--examples` prints 8 prompts side by side) | done; 2,172 requirements, covers 96% of expert records by category, 92% by element |
 | 4. verdicts + evaluation | `python scripts/run_validation.py` (~30 s, cached embeddings only) | done; see `results/summary.md` |
-| 5. Essentia scores (optional, Google Colab) | `notebooks/04_essentia.ipynb` → copy `essentia_scores.csv` to `data/processed/`, rerun step 4 | ready; not run yet |
+| 5. Essentia scores (optional, Google Colab) | `notebooks/04_essentia.ipynb` → copy `essentia_scores.csv` to `data/processed/`, rerun step 4 | done (~6.5 s per track in Colab); compared with CLAP |
 
 Step 5 is optional: without `data/processed/essentia_scores.csv`, step 4 uses CLAP for every check and
 skips the CLAP vs Essentia comparison (section 10 of `results/summary.md`).
@@ -108,14 +108,27 @@ Main result = commented tracks (subset A), per (track, category) cell, with 95% 
   macro-F1 0.23 (majority class: 0.36 / 0.07).
 - Aspect list vs caption: no difference in the share of satisfied requirements (0.70 vs 0.69, paired).
 
+**CLAP vs Essentia** (same rules and calibration; paired difference Essentia − CLAP with 95% CIs):
+
+| | CLAP | Essentia | Essentia − CLAP |
+|---|---|---|---|
+| genre ROC-AUC | 0.74 | 0.73 | −0.01 [−0.09, 0.07] |
+| instruments ROC-AUC | 0.55 | 0.56 | +0.01 [−0.11, 0.10] |
+| vocals ROC-AUC | 0.84 | 0.88 | +0.04 [−0.04, 0.13] |
+| micro ROC-AUC | 0.76 | 0.77 | +0.01 [−0.02, 0.04] |
+| track-level ROC-AUC (all 256) | 0.64 | 0.62 | −0.02 [−0.09, 0.05] |
+| vocal presence accuracy | 0.82 | **0.92** | **+0.10 [0.01, 0.18]** |
+
+The Essentia voice model is clearly better for vocal presence; everywhere else the two models (and their
+average) are not significantly different. The main pipeline still uses CLAP; full tables in
+`results/summary.md` §10 and notebook 03 §3.7.
+
 ## Current limitations
 
-- Essentia (Discogs-EffNet genre / MTG-Jamendo instrument and mood / voice-instrumental classifiers) is
-  integrated but not run yet (`essentia-tensorflow` installs on Linux only, so it runs in Colab); until
-  then the genre / mood / instrument checks use CLAP.
-- Instruments are the weakest CLAP check (ROC-AUC 0.55), probably because many songs contain bass,
-  drums or keyboards even when the prompt does not mention them, which makes the reference
-  distribution of the percentile calibration noisy (not verified yet).
+- Essentia does not improve genre, instruments or mood over CLAP; only its voice model helps (vocal presence).
+- Instruments are the weakest check with both models (ROC-AUC 0.55 CLAP, 0.56 Essentia), so the problem is
+  probably the setup rather than the audio model: many songs contain bass, drums or keyboards even when the
+  prompt does not mention them (noisy calibration), and a missing instrument is hard to confirm.
 - Only 13 of the 183 commented tracks have no expert mismatch, so track-level results on subset A
   are very uncertain; all 256 tracks (no comment = OK) give the more useful track-level comparison.
 - "Medium" tempo is weak: 17 of 30 medium-prompted tracks still come out as slow after the correction.

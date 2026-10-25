@@ -32,7 +32,7 @@ from aimv.audio.tempo import TEMPO_CLASSES, TEMPO_WORD_CLASSES, prior_correct  #
 from aimv.data import PROCESSED_DIR, PROJECT_ROOT, load_sunocaps  # noqa: E402
 from aimv.evaluation import (MIN_POSITIVES, binary_metrics, category_metrics, cluster_bootstrap,  # noqa: E402
                              fmt_ci, metrics_with_ci, multiclass_metrics_with_ci, oof_threshold_predictions,
-                             with_ci)
+                             paired_difference, with_ci)
 from aimv.verdicts import (DEFAULT_TAU, ESSENTIA_CSV, ESSENTIA_PREFIX, SYSTEMS, TEMPO_COLS,  # noqa: E402
                            add_essentia_voice, all_verdicts, apply_tau, audio_evidence, clap_percentiles,
                            essentia_percentiles, load_essentia_scores, predictions_per_category, softmax_probs,
@@ -250,11 +250,13 @@ def prompt_type_comparison(verdicts, gt_track, n_boot):
 
 
 def compare_systems(inp, track_ids, evidence, clap_scores, class_means, tau, essentia, n_boot):
-    """CLAP vs Essentia vs their average with the same verdict rules, metrics and CIs (+ trivial baseline)."""
+    """CLAP vs Essentia vs their average with the same verdict rules, metrics and CIs (+ trivial baseline),
+    and the paired difference Essentia - CLAP (same bootstrap resamples for both systems)."""
     ess_scores = essentia_percentiles(inp["reqs"], essentia, track_ids)
     ev_all = add_essentia_voice(evidence, essentia)
     gt = inp["gt_track"].set_index("track_id")
     per_cat, track, vocals, all_v = [], [], [], []
+    kept = {}  # system -> (subset-A cells, {subset: (y, oof pred, score, groups)}, vocal predictions)
     for system in SYSTEMS:
         ev, scores = system_inputs(system, ev_all, clap_scores, ess_scores)
         v = all_verdicts(inp["reqs"], ev, scores, class_means, tau, inp["bpm"])
@@ -268,18 +270,48 @@ def compare_systems(inp, track_ids, evidence, clap_scores, class_means, tau, ess
                 trivial = cells.assign(pred_mismatch=cells["n_requirements"] > 0, pred_score=cells["n_requirements"])
                 per_cat.append(category_metrics(trivial, CATEGORIES, n_boot).assign(system="trivial", subset=name))
         t = gt.join(preds.groupby("track_id")["pred_score"].max().rename("score"))
+        track_parts = {}
         for name, part in (("A_commented", t[t["has_comment"]]), ("B_all", t)):
             y, groups, score = part["any_mismatch"].to_numpy(bool), part["original_id"].to_numpy(), part["score"]
             pred, _ = oof_threshold_predictions(y, score.to_numpy(float), groups)
             track.append(dict(system=system, subset=name, **metrics_with_ci(y, pred, score, groups, n_boot)))
+            track_parts[name] = (y, pred, score.to_numpy(float), groups)
         vv = gt.join(ev["p_vocals"])
+        vocal_pred = (vv["p_vocals"] >= 0.5).astype(int)
         vocals.append(dict(system=system, **multiclass_metrics_with_ci(
-            vv["vocals_present_gt"].astype(int), (vv["p_vocals"] >= 0.5).astype(int), [0, 1], vv["original_id"], n_boot)))
+            vv["vocals_present_gt"].astype(int), vocal_pred, [0, 1], vv["original_id"], n_boot)))
+        kept[system] = (parts["A_commented"], track_parts, vocal_pred.to_numpy())
+
+    # paired differences Essentia - CLAP
+    paired = []
+    cells_c, cells_e = kept["clap"][0], kept["essentia"][0]
+    cat = cells_c["category"].to_numpy()
+    y = cells_c["gt_mismatch"].to_numpy(bool)
+    enough = [c for c in CATEGORIES if y[cat == c].sum() >= MIN_POSITIVES]
+    for c in enough + ["micro"]:
+        m = np.isin(cat, enough) if c == "micro" else cat == c
+        diff = paired_difference(y[m], cells_c["pred_mismatch"].to_numpy()[m], cells_c["pred_score"].to_numpy()[m],
+                                 cells_e["pred_mismatch"].to_numpy()[m], cells_e["pred_score"].to_numpy()[m],
+                                 cells_c["original_id"].to_numpy()[m], n_boot)
+        paired.append(dict(level="category", subset="A_commented", category=c, **diff))
+    for name in ("A_commented", "B_all"):
+        (y_t, pred_c, score_c, groups), (_, pred_e, score_e, _) = kept["clap"][1][name], kept["essentia"][1][name]
+        paired.append(dict(level="track", subset=name, category="any mismatch",
+                           **paired_difference(y_t, pred_c, score_c, pred_e, score_e, groups, n_boot)))
+    y_v = gt["vocals_present_gt"].astype(int).to_numpy()
+    acc = lambda pred, i: float(np.mean(pred[i] == y_v[i]))  # noqa: E731
+    boot = cluster_bootstrap(lambda i: {"accuracy_diff": acc(kept["essentia"][2], i) - acc(kept["clap"][2], i)},
+                             gt["original_id"].to_numpy(), n_boot)
+    point = {"accuracy_diff": acc(kept["essentia"][2], np.arange(len(y_v))) - acc(kept["clap"][2], np.arange(len(y_v)))}
+    paired.append(dict(level="vocal presence", subset="all", category="accuracy",
+                       **with_ci(point, boot, ["accuracy_diff"])))
+
     n_ess = int(inp["reqs"]["check"].isin(ESSENTIA_PREFIX).sum())
     info = dict(tracks=len(essentia), missing_tracks=len(set(track_ids) - set(essentia.index)),
                 essentia_requirements=n_ess, with_essentia_score=int(ess_scores["score_pct"].notna().sum()),
                 with_voice_score=int(ev_all["p_voice"].notna().sum()))
-    return pd.concat(per_cat, ignore_index=True), pd.DataFrame(track), pd.DataFrame(vocals), info, pd.concat(all_v)
+    return (pd.concat(per_cat, ignore_index=True), pd.DataFrame(track), pd.DataFrame(vocals), pd.DataFrame(paired),
+            info, pd.concat(all_v))
 
 
 def paired_row(name, wide, n_boot):
@@ -478,7 +510,7 @@ def write_summary(path, n_boot, tau, per_cat, track, sweep_cv, enough, vocals, n
         out += [f"`data/processed/{ESSENTIA_CSV.name}` not found, so this comparison is skipped. Run "
                 "`notebooks/04_essentia.ipynb` in Colab and copy the file to `data/processed/`.", ""]
     else:
-        sys_cat, sys_track, sys_vocals, info = systems
+        sys_cat, sys_track, sys_vocals, sys_paired, info = systems
         out += [f"Essentia scores for {info['tracks']} tracks ({info['missing_tracks']} missing). "
                 f"{info['with_essentia_score']} of {info['essentia_requirements']} `essentia_*` requirements got an "
                 "Essentia score (the rest keep CLAP: label not in the Essentia models or track missing); "
@@ -497,6 +529,15 @@ def write_summary(path, n_boot, tau, per_cat, track, sweep_cv, enough, vocals, n
         rows = [[r["system"], fmt_ci(r, "accuracy"), fmt_ci(r, "macro_f1")] for _, r in sys_vocals.iterrows()]
         out += ["Vocal presence vs `vocals_present_gt` (all 256 tracks):", "",
                 md_table(["system", "accuracy", "macro-F1"], rows), ""]
+        rows = []
+        for _, r in sys_paired.iterrows():
+            if r["level"] == "vocal presence":
+                rows.append([r["level"], r["subset"], "accuracy", fmt_ci(r, "accuracy_diff"), ""])
+            else:
+                rows.append([r["level"], r["subset"], r["category"], fmt_ci(r, "f1_diff"), fmt_ci(r, "roc_auc_diff")])
+        out += ["Paired difference **Essentia − CLAP** (same bootstrap resamples for both; a CI that excludes 0 "
+                "means a real difference):", "",
+                md_table(["level", "subset", "category", "Δ F1 (or Δ accuracy)", "Δ ROC-AUC"], rows), ""]
     path.write_text("\n".join(out))
 
 
@@ -567,13 +608,14 @@ def main():
               "(run notebooks/04_essentia.ipynb in Colab first)")
     else:
         print(f"CLAP vs Essentia vs average ({len(essentia)} tracks with Essentia scores) ...", flush=True)
-        sys_cat, sys_track, sys_vocals, info, sys_verdicts = compare_systems(
+        sys_cat, sys_track, sys_vocals, sys_paired, info, sys_verdicts = compare_systems(
             inp, track_ids, evidence, clap_scores, class_means, args.tau, essentia, args.n_boot)
         sys_cat.to_csv(RESULTS / "metrics_systems_per_category.csv", index=False)
         sys_track.to_csv(RESULTS / "metrics_systems_track_level.csv", index=False)
         sys_vocals.to_csv(RESULTS / "metrics_systems_vocals.csv", index=False)
+        sys_paired.to_csv(RESULTS / "metrics_systems_paired.csv", index=False)
         sys_verdicts.drop(columns=["params"]).to_csv(PROCESSED_DIR / "requirement_verdicts_systems.csv", index=False)
-        systems = (sys_cat, sys_track, sys_vocals, info)
+        systems = (sys_cat, sys_track, sys_vocals, sys_paired, info)
 
     write_summary(RESULTS / "summary.md", args.n_boot, args.tau, per_cat, track, sweep_cv, enough, vocals,
                   n_vocal_sheet, tempo_listen, emotion, shares, ptype, verdicts, systems)

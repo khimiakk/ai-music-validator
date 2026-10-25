@@ -134,4 +134,45 @@ Rates, not counts: aspect prompts have ~10.5 requirements, captions ~6.5.
 
 ## 10. CLAP vs Essentia vs their average
 
-`data/processed/essentia_scores.csv` not found, so this comparison is skipped. Run `notebooks/04_essentia.ipynb` in Colab and copy the file to `data/processed/`.
+Essentia scores for 256 tracks (0 missing). 962 of 970 `essentia_*` requirements got an Essentia score (the rest keep CLAP: label not in the Essentia models or track missing); 256 tracks have an Essentia voice score. Same verdict rules, tau and calibration for every system; subset A (commented tracks).
+
+| category | positives | F1 CLAP | F1 Essentia | F1 average | F1 trivial | AUC CLAP | AUC Essentia | AUC average |
+|---|---|---|---|---|---|---|---|---|
+| genre | 20 | 0.32 [0.06, 0.53] | 0.24 [0.00, 0.50] | 0.24 [0.00, 0.50] | 0.27 [0.08, 0.43] | 0.74 [0.59, 0.88] | 0.73 [0.53, 0.90] | 0.75 [0.59, 0.90] |
+| instruments | 38 | 0.36 [0.20, 0.51] | 0.34 [0.18, 0.48] | 0.34 [0.17, 0.49] | 0.35 [0.19, 0.48] | 0.55 [0.38, 0.71] | 0.56 [0.41, 0.72] | 0.57 [0.40, 0.73] |
+| vocals | 70 | 0.75 [0.62, 0.85] | 0.77 [0.65, 0.87] | 0.77 [0.65, 0.87] | 0.55 [0.40, 0.68] | 0.84 [0.75, 0.91] | 0.88 [0.80, 0.95] | 0.89 [0.82, 0.96] |
+| other | 74 | 0.64 [0.50, 0.75] | 0.64 [0.50, 0.75] | 0.64 [0.50, 0.75] | 0.70 [0.57, 0.81] | 0.76 [0.66, 0.85] | 0.76 [0.66, 0.85] | 0.76 [0.66, 0.85] |
+| micro | 202 | 0.58 [0.50, 0.65] | 0.58 [0.51, 0.65] | 0.58 [0.50, 0.66] | 0.48 [0.44, 0.53] | 0.76 [0.70, 0.82] | 0.77 [0.71, 0.83] | 0.78 [0.71, 0.84] |
+| macro | 202 | 0.52 [0.43, 0.60] | 0.50 [0.40, 0.59] | 0.50 [0.40, 0.59] | 0.47 [0.41, 0.52] | 0.72 [0.65, 0.80] | 0.73 [0.66, 0.81] | 0.74 [0.67, 0.82] |
+
+Track level (any mismatch):
+
+| subset | system | ROC-AUC | F1 |
+|---|---|---|---|
+| A_commented | clap | 0.65 [0.50, 0.83] | 0.95 [0.91, 0.99] |
+| B_all | clap | 0.64 [0.54, 0.74] | 0.80 [0.73, 0.85] |
+| A_commented | essentia | 0.74 [0.57, 0.91] | 0.96 [0.91, 0.99] |
+| B_all | essentia | 0.62 [0.53, 0.71] | 0.77 [0.69, 0.84] |
+| A_commented | average | 0.71 [0.54, 0.91] | 0.95 [0.91, 0.98] |
+| B_all | average | 0.65 [0.55, 0.74] | 0.80 [0.73, 0.86] |
+
+Vocal presence vs `vocals_present_gt` (all 256 tracks):
+
+| system | accuracy | macro-F1 |
+|---|---|---|
+| clap | 0.82 [0.75, 0.88] | 0.80 [0.70, 0.87] |
+| essentia | 0.92 [0.87, 0.96] | 0.88 [0.81, 0.93] |
+| average | 0.90 [0.85, 0.95] | 0.88 [0.80, 0.93] |
+
+Paired difference **Essentia − CLAP** (same bootstrap resamples for both; a CI that excludes 0 means a real difference):
+
+| level | subset | category | Δ F1 (or Δ accuracy) | Δ ROC-AUC |
+|---|---|---|---|---|
+| category | A_commented | genre | -0.07 [-0.19, 0.02] | -0.01 [-0.09, 0.07] |
+| category | A_commented | instruments | -0.02 [-0.10, 0.05] | 0.01 [-0.11, 0.10] |
+| category | A_commented | vocals | 0.02 [-0.06, 0.10] | 0.04 [-0.04, 0.13] |
+| category | A_commented | other | 0.00 [0.00, 0.00] | 0.00 [0.00, 0.00] |
+| category | A_commented | micro | 0.00 [-0.03, 0.04] | 0.01 [-0.02, 0.04] |
+| track | A_commented | any mismatch | 0.00 [-0.01, 0.01] | 0.08 [-0.10, 0.20] |
+| track | B_all | any mismatch | -0.03 [-0.08, 0.00] | -0.02 [-0.09, 0.05] |
+| vocal presence | all | accuracy | 0.10 [0.01, 0.18] |  |
