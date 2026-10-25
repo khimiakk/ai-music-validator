@@ -1,4 +1,4 @@
-"""Loading SunoCaps and adding the derived columns used across notebooks."""
+"""loading SunoCaps and adding the derived columns."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -18,19 +18,12 @@ EXTRA_EMOTION_FIXES = {"agressive": "aggressive"}
 
 
 def has_text(series: pd.Series) -> pd.Series:
-    """True where a cell holds a non-empty string (NaN-safe)."""
+    """true where a cell holds a non-empty string (NaN-safe)."""
     return series.notna() & series.astype("string").str.strip().ne("").fillna(False)
 
 
 def add_derived_columns(df: pd.DataFrame) -> pd.DataFrame:
-    """Same derivations as notebooks 01/02, in one place.
-
-    * ``original_id`` / ``generation_version`` from ``ytid_V``
-    * ``prompt_type`` from the generation version (the config flags are
-      inconsistent for 2 tracks, see notebook 01)
-    * ``actual_prompt`` – the text Suno actually received
-    * ``emotion_clean`` / ``extra_emotion_list``
-    """
+    """same derived columns as notebooks 01/02, in one place."""
     df = df.copy()
     parts = df["ytid_V"].str.rsplit("_", n=1)
     df["track_id"] = df["ytid_V"]
@@ -66,7 +59,7 @@ def load_sunocaps(path: str | Path = RAW_CSV) -> pd.DataFrame:
 
 
 def audio_path(track_id: str, audio_dir: str | Path = AUDIO_DIR) -> Path:
-    """Locate the audio file for a track (tries common extensions / layouts)."""
+    """locate the audio file for a track."""
     audio_dir = Path(audio_dir)
     for ext in (".mp3", ".wav", ".flac", ".ogg"):
         p = audio_dir / f"{track_id}{ext}"

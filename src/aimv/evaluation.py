@@ -1,10 +1,4 @@
-"""Metrics with 95% confidence intervals from a cluster bootstrap over original_id.
-
-The 4 versions of a prompt share the prompt and usually the expert comment, so they are not
-independent: every bootstrap resample draws whole original_ids (with replacement).
-Thresholds that are tuned (decision threshold, tau) are chosen with GroupKFold over original_id
-and evaluated on the held-out fold only.
-"""
+"""metrics with 95% CIs from a cluster bootstrap over original_id."""
 from __future__ import annotations
 
 import numpy as np
@@ -18,7 +12,7 @@ METRICS = ["precision", "recall", "f1", "roc_auc"]
 
 
 def binary_metrics(y, pred, score=None) -> dict:
-    """precision / recall / F1 of the binary predictions, ROC-AUC of the score, support = positives."""
+    """precision, recall, F1, ROC-AUC and support of binary predictions."""
     y, pred = np.asarray(y, bool), np.asarray(pred, bool)
     tp, fp, fn = (y & pred).sum(), (~y & pred).sum(), (y & ~pred).sum()
     auc = np.nan
@@ -30,7 +24,7 @@ def binary_metrics(y, pred, score=None) -> dict:
 
 
 def cluster_bootstrap(stat_fn, groups, n_boot: int = N_BOOT, seed: int = 0) -> pd.DataFrame:
-    """Call stat_fn(row_indices) on n_boot resamples of whole groups; one row of statistics each."""
+    """stat_fn on n_boot resamples of whole groups, one row each."""
     groups = np.asarray(groups)
     members = [np.flatnonzero(groups == g) for g in np.unique(groups)]
     rng = np.random.default_rng(seed)
@@ -42,7 +36,7 @@ def cluster_bootstrap(stat_fn, groups, n_boot: int = N_BOOT, seed: int = 0) -> p
 
 
 def with_ci(point: dict, boot: pd.DataFrame, keys) -> dict:
-    """{key: value, key_lo: 2.5%, key_hi: 97.5%} for the given keys."""
+    """value plus 2.5% and 97.5% percentiles for each key."""
     out = {}
     for k in keys:
         out[k] = point[k]
@@ -61,10 +55,7 @@ def metrics_with_ci(y, pred, score, groups, n_boot=N_BOOT, seed=0) -> dict:
 
 
 def category_metrics(cells: pd.DataFrame, categories, n_boot=N_BOOT, seed=0) -> pd.DataFrame:
-    """Per category + micro + macro (over categories with >= MIN_POSITIVES positives).
-
-    cells: one row per (track, category) with gt_mismatch, pred_mismatch, pred_score, original_id.
-    """
+    """per category, micro and macro metrics with bootstrap CIs."""
     y = cells["gt_mismatch"].to_numpy(bool)
     pred = cells["pred_mismatch"].to_numpy(bool)
     score = cells["pred_score"].to_numpy(float)
@@ -98,8 +89,7 @@ def category_metrics(cells: pd.DataFrame, categories, n_boot=N_BOOT, seed=0) -> 
 
 
 def paired_difference(y, pred_a, score_a, pred_b, score_b, groups, n_boot=N_BOOT, seed=0) -> dict:
-    """System b minus system a on the same rows: F1 and ROC-AUC differences with a paired cluster
-    bootstrap (both systems are scored on the same resamples)."""
+    """system b minus system a: paired F1 and ROC-AUC differences."""
     y, pred_a, pred_b = np.asarray(y, bool), np.asarray(pred_a, bool), np.asarray(pred_b, bool)
     score_a, score_b = np.asarray(score_a, float), np.asarray(score_b, float)
 
@@ -112,7 +102,7 @@ def paired_difference(y, pred_a, score_a, pred_b, score_b, groups, n_boot=N_BOOT
 
 
 def best_f1_threshold(y, score) -> float:
-    """Threshold (predict score >= t) with the highest F1 on these rows."""
+    """threshold (predict score >= t) with the highest F1."""
     y = np.asarray(y, bool)
     candidates = np.unique(score)
     f1s = [binary_metrics(y, score >= t)["f1"] for t in candidates]
@@ -120,7 +110,7 @@ def best_f1_threshold(y, score) -> float:
 
 
 def oof_threshold_predictions(y, score, groups, n_splits: int = 5):
-    """Out-of-fold predictions: the threshold is chosen on 4 folds (GroupKFold) and applied to the 5th."""
+    """out-of-fold predictions with a threshold tuned on other folds."""
     y, score = np.asarray(y, bool), np.asarray(score, float)
     pred, thresholds = np.zeros(len(y), bool), []
     for train, test in GroupKFold(n_splits=n_splits).split(np.zeros((len(y), 1)), y, groups):
@@ -131,7 +121,7 @@ def oof_threshold_predictions(y, score, groups, n_splits: int = 5):
 
 
 def multiclass_metrics_with_ci(y_true, y_pred, labels, groups, n_boot=N_BOOT, seed=0) -> dict:
-    """Accuracy and macro-F1 (over `labels`) with 95% cluster-bootstrap CIs."""
+    """accuracy and macro-F1 with 95% cluster-bootstrap CIs."""
     y_true, y_pred = np.asarray(y_true), np.asarray(y_pred)
 
     def stats(i):
@@ -144,7 +134,7 @@ def multiclass_metrics_with_ci(y_true, y_pred, labels, groups, n_boot=N_BOOT, se
 
 
 def fmt_ci(row, key, digits=2) -> str:
-    """'0.62 [0.51, 0.71]' (or '–' when undefined)."""
+    """format as '0.62 [0.51, 0.71]', or '–' when undefined."""
     v = row[key]
     if v is None or (isinstance(v, float) and np.isnan(v)):
         return "–"

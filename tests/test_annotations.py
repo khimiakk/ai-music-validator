@@ -1,4 +1,4 @@
-"""Expert comments -> mismatch records -> ground truth, on the hand-made fixture."""
+"""annotations: comments to records and ground truth on the fixture."""
 from pathlib import Path
 
 import pytest
@@ -31,7 +31,7 @@ def test_added_voice_becomes_hallucinated(data):
 
 def test_positive_comment_gives_no_records(data):
     _, records, per_category, per_track = data
-    tid = "-r7iz-9v9bA_3"  # "Follows very well the no-lyrics only vocables prompt"
+    tid = "-r7iz-9v9bA_3"  # comment: follows very well the no-lyrics only vocables prompt
     assert extract_records("Follows very well the no-lyrics only vocables prompt ") == ([], "positive")
     assert tid not in set(records["track_id"])
     track = per_track.set_index("track_id").loc[tid]
@@ -57,7 +57,7 @@ def test_ground_truth_shapes(data):
 
 def test_gt_mismatch_follows_records(data):
     _, records, per_category, _ = data
-    records = records[records["error_type"].isin(MISMATCH_ERROR_TYPES)]  # "partial" is not counted by default
+    records = records[records["error_type"].isin(MISMATCH_ERROR_TYPES)]  # partial records are not counted by default
     has_record = set(zip(records["track_id"], records["category"]))
     for _, row in per_category.iterrows():
         assert row["gt_mismatch"] == int((row["track_id"], row["category"]) in has_record)
@@ -74,10 +74,10 @@ def test_no_comment_is_assumed_ok(data):
 def test_vocals_label_from_comment(data):
     _, _, _, per_track = data
     t = per_track.set_index("track_id")
-    assert t.loc["-r7iz-9v9bA_4", "vocals_present_gt"] == 0.0  # "... Does not have voice"
+    assert t.loc["-r7iz-9v9bA_4", "vocals_present_gt"] == 0.0  # comment says "does not have voice"
     assert t.loc["-r7iz-9v9bA_4", "vocals_gt_source"] == "comment"
-    assert t.loc["1y1lEOGBcWM_1", "vocals_present_gt"] == 1.0  # "Added voice ..."
-    assert t.loc["-r7iz-9v9bA_3", "vocals_present_gt"] == 1.0  # "... only vocables prompt" (review 04)
+    assert t.loc["1y1lEOGBcWM_1", "vocals_present_gt"] == 1.0  # comment says "added voice"
+    assert t.loc["-r7iz-9v9bA_3", "vocals_present_gt"] == 1.0  # comment says "only vocables prompt" (review 04)
     assert t.loc["-r7iz-9v9bA_3", "vocals_gt_source"] == "comment"
 
 
@@ -104,7 +104,7 @@ def test_extract_records_single(comment, category, error_type):
 
 
 def test_rule_v2_extractor_is_unchanged():
-    # the notebook-02 rules alone still say "incorrect"; review 04 relabels the record afterwards
+    # rule_v2 alone says "incorrect"; review 04 relabels it afterwards
     raw = rule_v2_records("not instrumental.")
     assert [(r["source"], r["error_type"]) for r in raw] == [("rule_v2", "incorrect")]
     (rec,), _ = extract_records("Not instrumental.")

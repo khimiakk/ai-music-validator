@@ -1,31 +1,4 @@
-"""Expert comments -> mismatch records -> per-track ground truth.
-
-This module packages the logic of ``02_expert_annotations.ipynb`` so it can be
-re-run from the raw CSV, and finishes Stage 2:
-
-* ``RULES_V2``        – the 19 extraction rules from notebook 02 (unchanged);
-  ``RULE_V2_FIXES`` relabels two of them after manual review 04.
-* ``COMMENT_RULES``   – comment-level annotations from the manual review
-  (batch 1 and 2 from the notebook, draft rules for the remaining uncovered
-  comments, and manual review 04). They are keyed by a regex on the comment text, not by
-  ``review_id``, so every track that shares a comment automatically gets the
-  same labels (this fixes the propagation caveat of the deduplicated queue).
-* ``build_mismatch_records``  – one row per (track, issue).
-* ``build_ground_truth``      – one row per (track, category) with a binary
-  mismatch label, plus track-level labels for vocals and emotion.
-
-Error types and the proposal's verdict vocabulary
--------------------------------------------------
-=====================  ==================  =============================
-error_type             verdict (proposal)  meaning
-=====================  ==================  =============================
-missing                ignored             requested element absent
-added                  ignored             explicitly prohibited element present
-incorrect / replaced   changed             element present but different
-unexpected_addition    hallucinated        element not in the prompt was added
-partial                partially_met       expert says "only slightly"
-=====================  ==================  =============================
-"""
+"""expert comments to mismatch records and per-track ground truth."""
 from __future__ import annotations
 
 import re
@@ -36,15 +9,13 @@ import pandas as pd
 from . import CATEGORIES
 from .data import has_text
 
-# ---------------------------------------------------------------------------
-# 1. Rules from notebook 02 (kept verbatim so results are reproducible)
-# ---------------------------------------------------------------------------
 
 def _rule(pattern, category, expected, observed, error_type):
     return dict(pattern=pattern, category=category, expected=expected,
                 observed=observed, error_type=error_type)
 
 
+# rules from notebook 02, kept verbatim for reproducibility
 MISMATCH_RULES = [
     _rule(r"\bno strings\b", "instruments", "strings", "absent", "missing"),
     _rule(r"\bno xylophone\b", "instruments", "xylophone", "absent", "missing"),
@@ -72,30 +43,19 @@ ADDITIONAL_MISMATCH_RULES = [
 
 RULES_V2 = MISMATCH_RULES + ADDITIONAL_MISMATCH_RULES
 
-# Manual review 04: these rule_v2 records mean "the prompt asked for no vocals and the track
-# has vocals", the same situation as "added voice" -> error_type added (ignored) instead of
-# incorrect (changed). Notebook 02 still labels them incorrect; the record count is unchanged.
+# review 04: these mean "added voice", so added, not incorrect
 RULE_V2_FIXES = {
     r"does not follow [\"']?instrumental": dict(error_type="added"),
     r"\bnot instrumental\b": dict(error_type="added"),
 }
 
-# Section 2.8 of notebook 02: vocals were never prohibited in these prompts,
-# so "added voice" is an unexpected addition, not a violated requirement.
+# notebook 02, 2.8: vocals not prohibited here, so unexpected addition
 UNEXPECTED_VOCALS_ORIGINAL_IDS = {"1y1lEOGBcWM", "298Q_pSLflU"}
 
-# ---------------------------------------------------------------------------
-# 2. Comment-level annotations from manual review
-# ---------------------------------------------------------------------------
 
 @dataclass
 class CommentRule:
-    """Annotation attached to every comment that matches ``pattern``.
-
-    ``records`` may be empty (positive / purely descriptive comments).
-    ``review_status``: ``text_reviewed`` (checked against the prompt text in the
-    notebook or in manual review 04) or ``needs_review`` (draft – please confirm).
-    """
+    """annotation attached to every comment that matches ``pattern``."""
     pattern: str
     comment_type: str  # mismatch | positive | mixed | descriptive
     records: list[dict] = field(default_factory=list)
@@ -109,7 +69,7 @@ def _rec(category, expected, observed, error_type):
 
 
 COMMENT_RULES: list[CommentRule] = [
-    # ---- Batch 1 (notebook 02, section 2.10.1) ----
+    # batch 1: notebook 02, section 2.10.1
     CommentRule(r"far from classical indian", "mixed",
                 [_rec("genre", "Indian classical style", "closer to pop than classical Indian", "incorrect")],
                 "needs_review", "manual_batch_01",
@@ -123,7 +83,7 @@ COMMENT_RULES: list[CommentRule] = [
     CommentRule(r"\bno noise or people talking\b", "mismatch",
                 [_rec("other", "background chatter/noise", "absent", "missing")],
                 "text_reviewed", "manual_batch_01"),
-    # ---- Batch 2 (notebook 02, section 2.10.2) ----
+    # batch 2: notebook 02, section 2.10.2
     CommentRule(r"\bnot clearly a live performance\b", "mismatch",
                 [_rec("other", "live performance", "not clearly live", "incorrect")],
                 "text_reviewed", "manual_batch_02"),
@@ -143,7 +103,7 @@ COMMENT_RULES: list[CommentRule] = [
     CommentRule(r"instruments not specified are added", "mismatch",
                 [_rec("instruments", "only the specified instruments", "additional instruments", "unexpected_addition")],
                 "text_reviewed", "manual_batch_02"),
-    # ---- Draft rules for the remaining uncovered comments (to be confirmed) ----
+    # draft rules for the remaining comments, to be confirmed
     CommentRule(r"\bnot a live performance\b", "mismatch",
                 [_rec("other", "live performance", "studio-like", "incorrect")], source="manual_draft_03"),
     CommentRule(r"confounds afrobeat", "mismatch",
@@ -176,7 +136,7 @@ COMMENT_RULES: list[CommentRule] = [
     CommentRule(r"best version that follows the prompt", "positive", [], source="manual_draft_03"),
     CommentRule(r"catchy known riff", "descriptive", [], source="manual_draft_03",
                 notes="Possible memorisation; not a prompt mismatch."),
-    # ---- Manual review 04 (gaps found when reading the full comments) ----
+    # manual review 04: gaps found reading the full comments
     CommentRule(r"does not follow the vocal command and makes it instrumental", "mismatch",
                 [_rec("vocals", "vocals", "absent", "missing")], "text_reviewed", "manual_review_04"),
     CommentRule(r"instead using a guitar", "mismatch",
@@ -186,8 +146,7 @@ COMMENT_RULES: list[CommentRule] = [
                 "text_reviewed", "manual_review_04"),
     CommentRule(r"\bno humming\b", "mismatch",
                 [_rec("vocals", "humming", "absent", "missing")], "text_reviewed", "manual_review_04"),
-    # wider than the rule_v2 voice rules (optional "a"; voice / vocal / singer, singular or plural).
-    # Comments those rules already match are skipped, so the rule_v2 count stays 117.
+    # wider than rule_v2 voice rules; their matches are skipped
     CommentRule(r"\bnot clearly (?:a )?(?P<gender>male|female) (?:voice|vocal|singer)s?\b", "mismatch",
                 [_rec("vocals", "{gender} vocals", "unclear vocal type", "incorrect")],
                 "text_reviewed", "manual_review_04"),
@@ -208,7 +167,7 @@ COMMENT_RULES: list[CommentRule] = [
                 "text_reviewed", "manual_review_04"),
 ]
 
-# Generic fallback: "No <instrument>" for instruments not covered above.
+# generic fallback: "no <instrument>" for instruments not covered above
 _GENERIC_NO_INSTRUMENT = re.compile(r"(?:^|[.,;]\s*)no ([a-z][a-z \-]{2,30}?)(?=[.,;]|$)")
 
 
@@ -227,15 +186,8 @@ def _generic_instrument_records(text: str, covered_spans: list[tuple[int, int]])
     return out
 
 
-# ---------------------------------------------------------------------------
-# 3. Extraction
-# ---------------------------------------------------------------------------
-
 def rule_v2_records(text: str) -> list[dict]:
-    """Records from the notebook-02 rules alone (RULES_V2), before manual review 04.
-
-    ``text`` is the lower-cased comment. Notebook 02 got 117 records on 104 tracks this way.
-    """
+    """records from the notebook-02 rules alone, before review 04."""
     records, seen = [], set()
     for rule in RULES_V2:
         for m in re.finditer(rule["pattern"], text):
@@ -251,7 +203,7 @@ def rule_v2_records(text: str) -> list[dict]:
 
 
 def extract_records(comment) -> tuple[list[dict], str]:
-    """Return (records, comment_type) for one expert comment."""
+    """return (records, comment_type) for one expert comment."""
     if comment is None or (isinstance(comment, float) and pd.isna(comment)) or not str(comment).strip():
         return [], "missing"
     text = str(comment).lower().strip()
@@ -307,7 +259,7 @@ def extract_records(comment) -> tuple[list[dict], str]:
 
 
 def build_mismatch_records(df: pd.DataFrame) -> pd.DataFrame:
-    """One row per (track, extracted issue). ``df`` from ``data.load_sunocaps``."""
+    """one row per (track, extracted issue)."""
     rows = []
     for _, row in df.iterrows():
         records, _ = extract_records(row.get("Comments"))
@@ -339,9 +291,6 @@ ERROR_TYPE_TO_VERDICT = {
 
 MISMATCH_ERROR_TYPES = {"missing", "added", "incorrect", "replaced", "unexpected_addition"}
 
-
-# 4. Ground truth
-
 VOCALS_PRESENT_PATTERNS = [r"\badded voice\b", r"\bnot instrumental\b", r"does not follow [\"']?instrumental",
                            r"lab[ae]l+ed instrumental by the generator but has", r"does not follow [\"']?no singer",
                            r"\bsome words added\b", r"lyrics generated in", r"realistic voice", r"\bonly vocables\b"]
@@ -349,7 +298,7 @@ VOCALS_ABSENT_PATTERNS = [r"(?:^|[.!]\s*)no vocals?\b", r"\bdoes not have (?:a )
 
 
 def vocals_from_comment(comment) -> float | None:
-    """1.0 / 0.0 if the comment states vocals are present / absent, else None."""
+    """vocal presence stated in the comment: 1.0, 0.0 or None."""
     if comment is None or (isinstance(comment, float) and pd.isna(comment)):
         return None
     text = str(comment).lower()
@@ -362,16 +311,7 @@ def vocals_from_comment(comment) -> float | None:
 
 def build_ground_truth(df: pd.DataFrame, records: pd.DataFrame | None = None,
                        count_partial: bool = False) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Return ``(per_category, per_track)`` ground-truth tables.
-
-    per_category: one row per (track_id, category)
-        gt_mismatch   1 if the expert reported a mismatch in this category
-        gt_source     expert_record | comment_no_issue | no_comment_assumed_ok
-        gt_verdicts   proposal verdicts reported (ignored/changed/hallucinated)
-        gt_needs_review  any contributing record still needs review
-    per_track: one row per track with ``any_mismatch``, ``comment_type``,
-        ``vocals_present_gt`` (+ source), ``emotion_gt``.
-    """
+    """return ``(per_category, per_track)`` ground-truth tables."""
     if records is None:
         records = build_mismatch_records(df)
     error_types = set(MISMATCH_ERROR_TYPES) | ({"partial"} if count_partial else set())
@@ -423,7 +363,7 @@ def build_ground_truth(df: pd.DataFrame, records: pd.DataFrame | None = None,
 
 
 def coverage_report(df: pd.DataFrame) -> pd.DataFrame:
-    """Track-level coverage of commented tracks, by comment_type."""
+    """track-level coverage of commented tracks, by comment_type."""
     commented = df[has_text(df["Comments"])]
     ct = commented["Comments"].apply(lambda c: extract_records(c)[1])
     return ct.value_counts().rename_axis("comment_type").to_frame("tracks")

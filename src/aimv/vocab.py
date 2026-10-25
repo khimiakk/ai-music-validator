@@ -1,9 +1,4 @@
-"""Vocabularies used to turn prompt phrases into checkable requirements.
-
-Each term maps to a category; the ``*_MAP`` dicts link some terms to a
-dedicated model class. Terms not covered by a dedicated model fall back to
-CLAP zero-shot similarity.
-"""
+"""vocabularies that turn prompt phrases into checkable requirements."""
 from __future__ import annotations
 
 INSTRUMENT_TERMS = [
@@ -22,7 +17,7 @@ INSTRUMENT_TERMS = [
     "orchestra", "beat", "beats", "sampler", "turntable", "scratching",
 ]
 
-# MTG-Jamendo instrument classes (Essentia) – term -> class
+# term -> MTG-Jamendo instrument class (Essentia)
 ESSENTIA_INSTRUMENT_MAP = {
     "accordion": "accordion", "acoustic guitar": "acousticguitar", "bass": "bass", "bass guitar": "bass",
     "double bass": "doublebass", "upright bass": "doublebass", "bell": "bell", "bells": "bell",
@@ -52,7 +47,7 @@ GENRE_TERMS = [
     "samba", "caribbean", "world music", "symphonic", "easy listening", "fanfare", "wedding music", "comedy",
 ]
 
-# Discogs-400 style keywords (Essentia genre_discogs400) – term -> substrings
+# term -> Discogs-400 style substrings (Essentia genre_discogs400)
 DISCOGS_GENRE_MAP = {
     "southern rock": ["Southern Rock"], "hard rock": ["Hard Rock"], "rock": ["Rock---"],
     "punk": ["Punk"], "metal": ["Metal"], "pop": ["Pop---"], "k-pop": ["K-pop"], "j-pop": ["J-pop"],
@@ -88,7 +83,7 @@ MOOD_TERMS = [
     "bored", "addictive", "soulful", "quirky", "weird", "poignant",
 ]
 
-# MTG-Jamendo mood/theme classes (Essentia) – term -> class
+# term -> MTG-Jamendo mood/theme class (Essentia)
 ESSENTIA_MOOD_MAP = {
     "happy": "happy", "joyful": "happy", "cheerful": "happy", "fun": "fun", "playful": "fun",
     "upbeat": "upbeat", "uplifting": "uplifting", "positive": "positive", "hopeful": "hopeful",
@@ -102,7 +97,7 @@ ESSENTIA_MOOD_MAP = {
     "motivational": "motivational", "cool": "cool",
 }
 
-# SunoCaps expert emotion labels (for emotion classification by zero-shot)
+# expert emotion labels of SunoCaps, for zero-shot classification
 SUNOCAPS_EMOTIONS = ["happy", "exciting", "sad", "calm", "content", "angry", "disgust", "surprise"]
 
 TEMPO_WORDS = {
@@ -132,8 +127,7 @@ OTHER_TERMS = [
     "whirring", "glass shattering", "ducks", "footsteps", "laughter", "nature atmosphere",
 ]
 
-# Spelling variants and typos seen in SunoCaps prompts -> the term used in the lists above.
-# The parser matches the variant and stores the term, e.g. "shimmering hi hats" -> instruments: hi-hat.
+# spelling variants and typos in prompts -> canonical term
 TERM_ALIASES = {
     # instruments
     "e-bass": "bass", "e-guitar": "electric guitar", "electronic guitar": "electric guitar",

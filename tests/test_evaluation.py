@@ -1,6 +1,5 @@
 """evaluation.py: metrics, cluster bootstrap, out-of-fold thresholds."""
 import numpy as np
-import pytest
 
 from aimv.evaluation import (binary_metrics, cluster_bootstrap, metrics_with_ci, oof_threshold_predictions,
                              paired_difference)
@@ -20,7 +19,7 @@ def test_cluster_bootstrap_keeps_groups_together():
     groups = np.array(["a", "a", "b", "b", "c", "c"])
     sizes = cluster_bootstrap(lambda i: {"n": len(i), "pairs": np.all(groups[i][::2] == groups[i][1::2])},
                               groups, n_boot=50)
-    assert (sizes["n"] == 6).all() and sizes["pairs"].all()  # 3 whole groups of 2 rows each time
+    assert (sizes["n"] == 6).all() and sizes["pairs"].all()  # always 3 whole groups of 2 rows
 
 
 def test_metrics_with_ci_contains_the_point_estimate():

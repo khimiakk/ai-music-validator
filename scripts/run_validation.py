@@ -1,16 +1,4 @@
-"""Stage 4: verdict per requirement, CLAP baseline, evaluation against the expert labels.
-
-    run_validation.py                 # everything (CLAP is loaded for TEXT embeddings only)
-    run_validation.py --n-boot 200    # quicker bootstrap while trying things out
-
-Inputs (all cached, no audio): data/processed/clap_audio_windows.npz, clap_meta.json,
-audio_features.csv, requirements.csv, ground_truth_per_category.csv, ground_truth_per_track.csv,
-mismatch_records.csv (+ the raw CSV for the full prompt text).
-
-Outputs: data/processed/requirement_verdicts.csv, predictions_per_category.csv,
-results/metrics_*.csv, results/figures/*.png, results/summary.md.
-All CIs are 95% cluster-bootstrap intervals over original_id (see aimv.evaluation).
-"""
+"""stage 4: verdicts, CLAP baseline and evaluation against expert labels."""
 from __future__ import annotations
 
 import argparse
@@ -44,14 +32,10 @@ FIGURES = RESULTS / "figures"
 TAUS = np.round(np.arange(0.30, 0.801, 0.05), 2)
 SHOWN_VERDICTS = ["satisfied", "ignored", "changed", "hallucinated"]
 GT_COLS = ["track_id", "category", "original_id", "prompt_type", "gt_mismatch", "gt_source", "gt_needs_review"]
-# chart colours (light theme): surface, text, muted text, grid, categorical slots 1-5
+# chart colours: surface, text, muted text, grid, categorical slots
 SURFACE, INK, MUTED, GRID = "#fcfcfb", "#0b0b0b", "#52514e", "#e4e3df"
 SLOTS = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4"]
 
-
-# ---------------------------------------------------------------------------
-# inputs and verdicts
-# ---------------------------------------------------------------------------
 
 def load_inputs():
     reqs = pd.read_csv(PROCESSED_DIR / "requirements.csv")
@@ -71,17 +55,13 @@ def load_inputs():
 
 
 def subsets(cells: pd.DataFrame) -> dict:
-    """(A) commented tracks = main result, (A-reviewed) without cells that still need review, (B) all."""
+    """ground-truth subsets: commented, commented and reviewed, all tracks."""
     a = cells[cells["gt_source"] != "no_comment_assumed_ok"]
     return {"A_commented": a, "A_reviewed": a[~a["gt_needs_review"]], "B_all": cells}
 
 
-# ---------------------------------------------------------------------------
-# evaluation sections
-# ---------------------------------------------------------------------------
-
 def evaluate_categories(preds, n_boot):
-    """Per-category metrics for the modular system and the trivial baseline, on every GT subset."""
+    """per-category metrics, modular system vs trivial baseline, every subset."""
     frames = []
     for name, cells in subsets(preds).items():
         trivial = cells.assign(pred_mismatch=cells["n_requirements"] > 0, pred_score=cells["n_requirements"])
@@ -91,7 +71,7 @@ def evaluate_categories(preds, n_boot):
 
 
 def evaluate_track_level(preds, gt_track, track_ids, E, prompts, embed_text, n_boot):
-    """any_mismatch per track: modular system vs global CLAP similarity vs trivial baseline."""
+    """track-level any_mismatch: modular vs CLAP similarity vs trivial."""
     pos = {t: i for i, t in enumerate(track_ids)}
     per_track = preds.groupby("track_id").agg(modular=("pred_score", "max"), modular_any=("pred_mismatch", "any"),
                                               trivial=("n_requirements", lambda n: (n > 0).sum()))
@@ -117,7 +97,7 @@ def evaluate_track_level(preds, gt_track, track_ids, E, prompts, embed_text, n_b
 
 
 def tau_sweep(verdicts, gt_cat, track_ids, n_boot):
-    """F1 per category for tau 0.3-0.8 (CLAP checks only) on subset A, and tau chosen by GroupKFold."""
+    """tau sweep of per-category F1, plus tau chosen by GroupKFold."""
     a_keys = gt_cat[gt_cat["gt_source"] != "no_comment_assumed_ok"]
     enough = [c for c in CATEGORIES if a_keys.loc[a_keys["category"] == c, "gt_mismatch"].sum() >= MIN_POSITIVES]
     cells, by_tau, rows = None, {}, []
@@ -145,7 +125,7 @@ def tau_sweep(verdicts, gt_cat, track_ids, n_boot):
 
 
 def evaluate_vocals(evidence, gt_track, reqs, comments, n_boot):
-    """CLAP vocal presence vs vocals_present_gt, per label source; disagreements go to a listening sheet."""
+    """vocal presence vs vocals_present_gt; disagreements go to listening sheet."""
     v = gt_track.set_index("track_id")[["original_id", "vocals_present_gt", "vocals_gt_source"]].join(evidence["p_vocals"])
     v["y"] = v["vocals_present_gt"].astype(int)
     v["pred"] = (v["p_vocals"] >= 0.5).astype(int)
@@ -170,7 +150,7 @@ def evaluate_vocals(evidence, gt_track, reqs, comments, n_boot):
 
 
 def evaluate_tempo_listening(verdicts, evidence, class_means):
-    """Accuracy of the tempo verdicts against my_label in results/tempo_listening.csv (if filled)."""
+    """accuracy of tempo verdicts against the filled tempo listening sheet."""
     sheet = pd.read_csv(RESULTS / "tempo_listening.csv", dtype=str).fillna("")
     sheet["my_label"] = sheet["my_label"].str.strip().str.lower()
     sheet = sheet[sheet["my_label"].isin(TEMPO_CLASSES)]
@@ -189,7 +169,7 @@ def evaluate_tempo_listening(verdicts, evidence, class_means):
 
 
 def evaluate_emotion(E, track_ids, gt_track, embed_text, logit_scale, n_boot):
-    """Zero-shot over the 8 SunoCaps emotions vs emotion_gt, with a majority-class baseline."""
+    """zero-shot CLAP emotion vs emotion_gt, plus majority-class baseline."""
     gt = gt_track.set_index("track_id").loc[track_ids]
     P = softmax_probs(E, embed_text([f"{e} music" for e in SUNOCAPS_EMOTIONS]), logit_scale)
     labels = np.array(SUNOCAPS_EMOTIONS)
@@ -206,12 +186,7 @@ def evaluate_emotion(E, track_ids, gt_track, embed_text, logit_scale, n_boot):
 
 
 def verdict_shares(verdicts, records, gt_track):
-    """Share of satisfied / ignored / changed / hallucinated per category, model vs experts (commented tracks).
-
-    Experts: ignored / changed / hallucinated = their mismatch records; satisfied = the checked
-    requirements of that category minus the expert's ignored + changed records (an approximation,
-    expert records are not matched one-to-one to parsed requirements).
-    """
+    """verdict shares per category, model vs experts, commented tracks."""
     commented = set(gt_track.loc[gt_track["has_comment"], "track_id"])
     v = verdicts[verdicts["track_id"].isin(commented)]
     model = pd.crosstab(v["category"], v["verdict"]).reindex(index=CATEGORIES, columns=SHOWN_VERDICTS, fill_value=0)
@@ -232,8 +207,7 @@ def verdict_shares(verdicts, records, gt_track):
 
 
 def prompt_type_comparison(verdicts, gt_track, n_boot):
-    """aspect_list vs caption, paired within original_id: share of satisfied requirements (model)
-    and share of tracks with an expert mismatch (all 256 tracks, no comment = OK)."""
+    """aspect_list vs caption, paired within original_id."""
     v = verdicts[(verdicts["check"] != "vocal_hallucination") & verdicts["verdict"].isin(["satisfied", "ignored",
                                                                                            "changed"])]
     measures = {"model: share of satisfied requirements (all categories)": v}
@@ -250,13 +224,12 @@ def prompt_type_comparison(verdicts, gt_track, n_boot):
 
 
 def compare_systems(inp, track_ids, evidence, clap_scores, class_means, tau, essentia, n_boot):
-    """CLAP vs Essentia vs their average with the same verdict rules, metrics and CIs (+ trivial baseline),
-    and the paired difference Essentia - CLAP (same bootstrap resamples for both systems)."""
+    """compare CLAP, Essentia and their average, with paired differences."""
     ess_scores = essentia_percentiles(inp["reqs"], essentia, track_ids)
     ev_all = add_essentia_voice(evidence, essentia)
     gt = inp["gt_track"].set_index("track_id")
     per_cat, track, vocals, all_v = [], [], [], []
-    kept = {}  # system -> (subset-A cells, {subset: (y, oof pred, score, groups)}, vocal predictions)
+    kept = {}  # system -> (subset-A cells, track-level parts, vocal predictions)
     for system in SYSTEMS:
         ev, scores = system_inputs(system, ev_all, clap_scores, ess_scores)
         v = all_verdicts(inp["reqs"], ev, scores, class_means, tau, inp["bpm"])
@@ -322,10 +295,6 @@ def paired_row(name, wide, n_boot):
     return dict(measure=name, n_pairs=len(diff), aspect_list=wide["aspect_list"].mean(), caption=wide["caption"].mean(),
                 **with_ci({"diff": diff.mean()}, boot, ["diff"]), wilcoxon_p=p)
 
-
-# ---------------------------------------------------------------------------
-# figures
-# ---------------------------------------------------------------------------
 
 def _axes(ax):
     ax.set_facecolor(SURFACE)
@@ -414,10 +383,6 @@ def plot_track_roc(roc, path):
     fig.savefig(path, dpi=150, bbox_inches="tight")
     plt.close(fig)
 
-
-# ---------------------------------------------------------------------------
-# summary.md
-# ---------------------------------------------------------------------------
 
 def md_table(header, rows) -> str:
     lines = ["| " + " | ".join(header) + " |", "|" + "---|" * len(header)]
@@ -540,8 +505,6 @@ def write_summary(path, n_boot, tau, per_cat, track, sweep_cv, enough, vocals, n
                 md_table(["level", "subset", "category", "Δ F1 (or Δ accuracy)", "Δ ROC-AUC"], rows), ""]
     path.write_text("\n".join(out))
 
-
-# ---------------------------------------------------------------------------
 
 def main():
     ap = argparse.ArgumentParser()

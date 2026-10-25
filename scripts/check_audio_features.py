@@ -1,12 +1,4 @@
-"""Sanity checks on the output of extract_audio_features.py.
-
-    check_audio_features.py
-
-    1. coverage   both files have every track
-    2. tempo      BPM histogram (results/figures/tempo_hist.png), "fast" vs "slow" prompts
-    3. vocals     CLAP zero-shot vocals vs instrumental, compared with the Instrumental column
-    4. retrieval  rank of each track's own prompt among the 64 prompts of its type
-"""
+"""sanity checks on the output of extract_audio_features.py."""
 from __future__ import annotations
 
 import json
@@ -105,7 +97,7 @@ def main():
     check_tempo(df, feats)
 
     df = df[df["track_id"].isin(embs)]
-    scorer = ClapScorer(meta["model"])  # text side must come from the same model as the audio embeddings
+    scorer = ClapScorer(meta["model"])  # text embeddings must use the audio embeddings' model
     print(f"\nCLAP {meta['model']}, logit_scale {meta['logit_scale']:.2f} (from clap_meta.json)")
     check_vocals(df, embs, scorer, meta["logit_scale"])
     check_retrieval(df, embs, scorer)

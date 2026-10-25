@@ -1,4 +1,4 @@
-"""Essentia integration (verdicts.py) with a small synthetic essentia_scores.csv."""
+"""essentia integration in verdicts.py with synthetic scores."""
 import numpy as np
 import pandas as pd
 import pytest
@@ -11,7 +11,7 @@ TRACKS = ["a_1", "b_1", "c_1", "d_1"]
 
 @pytest.fixture
 def essentia(tmp_path):
-    """Synthetic notebook-04 output: <prefix>__<label>__mean / __max per track."""
+    """synthetic notebook-04 output with mean and max per label."""
     mean = {
         "genre__Rock---Indie Rock": [0.9, 0.1, 0.2, 0.3],
         "genre__Rock---Punk": [0.2, 0.8, 0.1, 0.1],
@@ -62,7 +62,7 @@ def test_percentiles_against_tracks_without_the_requirement(essentia):
         req("e_1", "essentia_mood", "mood", "happy", label="happy"),  # track without Essentia scores
     ])
     out = essentia_percentiles(reqs, essentia, TRACKS + ["e_1"])
-    # piano reference = b_1 (0.2) and d_1 (0.1): a (0.9) beats both, c (0.4) too
+    # reference is b_1 and d_1; a and c beat both
     assert out.loc[0, "score_pct"] == 1.0 and out.loc[1, "score_pct"] == 1.0
     assert out.loc[0, "s"] == 0.9
     assert np.isnan(out.loc[2, "score_pct"])  # label not in the models -> keeps CLAP
@@ -89,7 +89,7 @@ def test_system_inputs(essentia):
 
 
 def test_essentia_voice_drives_the_vocal_verdict(essentia):
-    reqs = pd.DataFrame([req("a_1", "vocal_presence", "vocals", "vocals", polarity=-1)])  # "instrumental"
+    reqs = pd.DataFrame([req("a_1", "vocal_presence", "vocals", "vocals", polarity=-1)])  # prompt says instrumental
     evidence = pd.DataFrame({"p_vocals": [0.2], "p_female": [0.5]}, index=pd.Index(["a_1"], name="track_id"))
     evidence[TEMPO_COLS] = 1 / 3
     ev = add_essentia_voice(evidence, essentia)
@@ -97,5 +97,5 @@ def test_essentia_voice_drives_the_vocal_verdict(essentia):
     ess_ev, _ = system_inputs("essentia", ev, pd.DataFrame(columns=["s", "score_pct"]),
                               pd.DataFrame(columns=["s", "score_pct"]))
     empty = pd.DataFrame()
-    assert requirement_verdicts(reqs, clap_ev, empty, [1 / 3] * 3).loc[0, "verdict"] == "satisfied"  # CLAP: 0.2
-    assert requirement_verdicts(reqs, ess_ev, empty, [1 / 3] * 3).loc[0, "verdict"] == "ignored"  # Essentia: 0.9
+    assert requirement_verdicts(reqs, clap_ev, empty, [1 / 3] * 3).loc[0, "verdict"] == "satisfied"  # p_vocals 0.2 from CLAP
+    assert requirement_verdicts(reqs, ess_ev, empty, [1 / 3] * 3).loc[0, "verdict"] == "ignored"  # p_voice 0.9 from Essentia

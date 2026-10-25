@@ -1,13 +1,4 @@
-"""tempo + CLAP window embeddings for every track.
-
-    extract_audio_features.py       # all tracks
-    extract_audio_features.py       # quick test
-    extract_audio_features.py       # tempo only (no-clap)
-
-    audio_features.csv      #tempo per track
-    clap_audio_windows.npz  CLAP embedding per 10 s window
-    clap_meta.json
-"""
+"""tempo and CLAP window embeddings for every track."""
 from __future__ import annotations
 
 import argparse

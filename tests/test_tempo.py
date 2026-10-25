@@ -1,10 +1,10 @@
-"""Tempo estimation on synthetic click tracks + the tempo checks."""
+"""tempo estimation on synthetic click tracks and the tempo checks."""
 import librosa
 import pytest
 
 from aimv.audio.tempo import estimate_tempo, prior_correct, tempo_verdict, tempo_word_verdict
 
-SR = 48_000  # same rate the extraction script passes in (CLAP rate)
+SR = 48_000  # same rate the extraction script uses (CLAP rate)
 
 
 def click_track(bpm: float, seconds: float = 30.0, sr: int = SR):
@@ -15,7 +15,7 @@ def click_track(bpm: float, seconds: float = 30.0, sr: int = SR):
 @pytest.mark.parametrize("bpm", [90, 120, 140])
 def test_estimate_tempo_click_track(bpm):
     est = estimate_tempo(click_track(bpm), SR)["bpm"]
-    # beat trackers often lock to half or double tempo, so accept those too
+    # accept half or double tempo, beat trackers often lock there
     ok = any(abs(est - bpm * f) <= 0.05 * bpm * f for f in (1.0, 0.5, 2.0))
     assert ok, f"estimated {est:.1f} bpm for a {bpm} bpm click track"
 
@@ -44,8 +44,8 @@ def test_tempo_verdict_octave():
     ([0.2, 0.5, 0.3], "downtempo", "satisfied"),
     ([0.1, 0.2, 0.7], "downtempo", "changed"),
     ([0.2, 0.5, 0.3], "uptempo", "changed"),
-    ([0.2, 0.5, 0.3], "mid", "satisfied"),  # "mid tempo"
-    ([0.1, 0.2, 0.7], "faster", "satisfied"),  # "faster tempo"
+    ([0.2, 0.5, 0.3], "mid", "satisfied"),  # parsed from "mid tempo"
+    ([0.1, 0.2, 0.7], "faster", "satisfied"),  # parsed from "faster tempo"
     ([0.2, 0.5, 0.3], "groovy", "unknown"),
 ])
 def test_tempo_word_verdict(probs, word, expected):
@@ -55,7 +55,7 @@ def test_tempo_word_verdict(probs, word, expected):
 def test_prior_correct():
     p = prior_correct([0.5, 0.2, 0.3], [0.6, 0.2, 0.2])
     assert p.sum() == pytest.approx(1.0)
-    assert p.argmax() == 2  # 0.5/0.6 < 0.2/0.2 < 0.3/0.2, so fast wins
+    assert p.argmax() == 2  # ratios 0.5/0.6 < 0.2/0.2 < 0.3/0.2, so fast wins
     assert prior_correct([0.5, 0.2, 0.3], [1 / 3] * 3) == pytest.approx([0.5, 0.2, 0.3])
 
 

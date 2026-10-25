@@ -12,7 +12,7 @@ def unit(*v):
     return v / np.linalg.norm(v)
 
 
-# 2-d "embedding space": the first axis means "piano"
+# toy 2-d embedding space, the first axis means piano
 TEXTS = {"piano melody": unit(1, 0), "music with piano": unit(1, 0)}
 TRACKS = ["a_1", "b_1", "c_1", "d_1"]
 E = np.stack([unit(1, 0.1), unit(0.9, 0.5), unit(0.2, 1), unit(-0.5, 1)])  # a sounds most like piano
@@ -43,7 +43,7 @@ def test_softmax_probs():
 def test_percentile_against_tracks_without_the_requirement():
     reqs = pd.DataFrame([req("a_1"), req("c_1")])
     scores = clap_percentiles(reqs, TRACKS, E, embed_text)
-    # reference = tracks b and d (no piano requirement): sims 0.87 and -0.45
+    # reference is b and d: sims 0.87 and -0.45
     assert scores.loc[0, "score_pct"] == 1.0  # a (0.995) beats both
     assert scores.loc[1, "score_pct"] == 0.5  # c (0.20) beats only d
 
@@ -55,7 +55,7 @@ def test_clap_verdict(pct, polarity, expected):
 
 
 def test_prohibition_scores_the_element_itself():
-    # "no piano": CLAP scores "music with piano" and the verdict is reversed
+    # for "no piano" CLAP scores "music with piano", then reverses
     reqs = pd.DataFrame([req("a_1", polarity=-1, clap_text="music without piano")])
     scores = clap_percentiles(reqs, TRACKS, E, embed_text)
     assert scores.loc[0, "text"] == "music with piano"
@@ -75,8 +75,8 @@ def test_vocal_checks():
     ev = evidence(a_1=(0.9, 0.2), b_1=(0.1, 0.9))  # a: vocals, sounds male; b: no vocals
     v = requirement_verdicts(reqs, ev, pd.DataFrame(), class_means=[1 / 3] * 3)
     assert list(v["verdict"]) == ["satisfied", "ignored", "changed", "satisfied", "ignored", "not_checked"]
-    assert v.loc[0, "mismatch_score"] == pytest.approx(0.1)  # 1 - p_vocals
-    assert v.loc[2, "mismatch_score"] == pytest.approx(0.8)  # 1 - p(female)
+    assert v.loc[0, "mismatch_score"] == pytest.approx(0.1)  # equals 1 - p_vocals
+    assert v.loc[2, "mismatch_score"] == pytest.approx(0.8)  # equals 1 - p(female)
 
 
 def test_tempo_uses_prior_correction():

@@ -1,20 +1,4 @@
-"""Stage 3: prompt -> checkable requirements (no audio needed).
-
-    parse_prompts.py              # parse, save, summary + coverage vs the expert records
-    parse_prompts.py --examples   # also print 8 random prompts next to their requirements
-
-    data/processed/requirements.csv   one row per (track, requirement); params as a JSON string
-    results/prompt_coverage.csv       coverage vs experts per category (+ _records.csv per record)
-
-Coverage vs experts uses data/processed/mismatch_records.csv (run build_ground_truth.py first):
-    a) category level: the track has any requirement of the expert record's category
-    b) element level:  a requirement of that category has a key word of the expert's "expected"
-                       in its value or phrase (simple word matching). Prohibitions ("no ...",
-                       "instrumental only") need a requirement with polarity -1 instead, and
-                       generic expectations ("prompted style") only the category.
-    An element-level miss is a parser miss if a key word appears in the prompt text, otherwise
-    the prompt itself does not name the element.
-"""
+"""stage 3: parse prompts into requirements, measure coverage vs experts."""
 from __future__ import annotations
 
 import argparse
@@ -34,7 +18,7 @@ from aimv.prompt_parsing import parse_dataframe  # noqa: E402
 
 RESULTS_DIR = PROJECT_ROOT / "results"
 
-# expert expectations that no prompt-word parser can produce (not counted as parser misses)
+# expectations no prompt-word parser can produce; not parser misses
 NOT_FROM_PROMPT_WORDS = {
     "composition as described (what happens in which bar)": "composition / structure",
     "violins in eighth-note pattern": "rhythmic figure",
@@ -44,7 +28,7 @@ GENERIC_WORDS = {"vocal", "music", "recording", "sound", "instrument"}  # only u
 
 
 def words(text) -> set[str]:
-    """Lower-case words with a trailing plural "s" removed ("strings" -> "string")."""
+    """lower-case words with a trailing plural "s" removed."""
     return {w[:-1] if len(w) > 3 and w.endswith("s") else w for w in re.findall(r"[a-z]+", str(text).lower())}
 
 
@@ -54,7 +38,7 @@ def key_words(expected: str) -> set[str]:
 
 
 def unique_prompts(df: pd.DataFrame) -> pd.DataFrame:
-    """One track per distinct prompt (_1/_2 and _3/_4 share a prompt): 64 aspect lists + 64 captions."""
+    """one track per distinct prompt (_1/_2 and _3/_4 share one)."""
     return df.drop_duplicates(["original_id", "prompt_type"])
 
 
@@ -105,8 +89,8 @@ def print_examples(df: pd.DataFrame, reqs: pd.DataFrame, n: int = 8, seed: int =
 
 
 def element_hit(expected: str, same_cat: pd.DataFrame) -> bool:
-    """Does a requirement of the expert record's category match the expert's "expected"?"""
-    if expected.startswith("prompted"):  # "prompted style": the expert names no element
+    """does a same-category requirement match the expert's "expected"?"""
+    if expected.startswith("prompted"):  # e.g. "prompted style": the expert names no element
         return len(same_cat) > 0
     if expected.startswith("no ") or "instrumental" in expected:  # prohibition
         return bool((same_cat["polarity"] < 0).any())

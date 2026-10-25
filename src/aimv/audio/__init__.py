@@ -1,1 +1,1 @@
-"""Audio analysis: loading/windowing, tempo, CLAP embeddings (Essentia: TODO)."""
+"""audio analysis: loading, windowing, tempo and CLAP embeddings."""

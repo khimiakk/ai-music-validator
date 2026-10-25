@@ -1,4 +1,4 @@
-"""Prompt -> requirements (rule based)."""
+"""prompt to requirements, rule based."""
 from pathlib import Path
 
 import pytest
@@ -12,7 +12,7 @@ FIXTURE = Path(__file__).parent / "fixtures" / "sunocaps_sample.csv"
 
 
 def reqs_of(text, prompt_type="aspect_list"):
-    """{(category, value): polarity} for a prompt."""
+    """map (category, value) to polarity for a prompt."""
     return {(r.category, r.value): r.polarity for r in parse_prompt(text, prompt_type)}
 
 
@@ -87,7 +87,7 @@ def test_new_tempo_words_are_mapped(text, word):
 
 
 def test_every_tempo_word_is_mapped():
-    # the parser stores the word without " tempo"; tempo_word_verdict must know all of them
+    # parser drops "tempo" from words; verdict must know them all
     for word in vocab.TEMPO_WORDS:
         assert word.replace(" tempo", "") in TEMPO_WORD_CLASSES, word
 

@@ -1,11 +1,4 @@
-"""Stage 3 – decompose a text prompt into checkable requirements.
-
-Rule/vocabulary based (deterministic, no API needed). Works for both prompt
-types: aspect lists are split on commas, captions into sentences. Inside a
-phrase, negations are found first, then tempo, vocals, instruments, genre,
-mood and other; a term matched by an earlier category blocks overlapping
-matches in later ones (e.g. "beat boxing" is vocals, not the instrument "beat").
-"""
+"""stage 3: decompose a text prompt into checkable requirements."""
 from __future__ import annotations
 
 import re
@@ -15,15 +8,14 @@ import pandas as pd
 
 from . import vocab
 
-# ---------------------------------------------------------------------------
 
 @dataclass
 class Requirement:
     track_id: str
-    category: str          # genre | instruments | vocals | tempo | mood | other
+    category: str          # genre, instruments, vocals, tempo, mood or other
     value: str             # normalised term, e.g. "electric guitar", "female vocals", "fast"
     phrase: str            # prompt phrase it came from
-    polarity: int = 1      # +1 must be present, -1 must be absent
+    polarity: int = 1      # must be present (+1) or absent (-1)
     check: str = "clap"    # tempo | vocal_presence | vocal_gender | essentia_* | clap
     clap_text: str = ""
     params: dict = field(default_factory=dict)
@@ -40,7 +32,7 @@ def _alternation(terms):
 
 
 def _with_aliases(terms):
-    """The terms plus their spelling variants from vocab.TERM_ALIASES."""
+    """the terms plus their spelling variants from vocab.TERM_ALIASES."""
     return list(terms) + [alias for alias, term in vocab.TERM_ALIASES.items() if term in terms]
 
 
@@ -57,7 +49,7 @@ _NO_VOCALS = re.compile(r"(?<!mostly )\binstrumental\b(?!\s+(?:break|section|par
 _NO_LYRICS = re.compile(r"\b(?:no|without)\s+(?:words|lyrics)\b|\bonly vocables\b")
 _NO_INSTRUMENTS = re.compile(r"\b(?:no|without)\s+(?:instruments|instrumentation|accompaniment)\b|\ba ?cappella\b")
 _NO_OTHER_INSTRUMENTS = re.compile(r"\b(?:no|without)\s+(?:any\s+)?other\s+instruments?\b|\bwithout\s+any\s+(?:instrumentation|accompaniment)\b")
-_NEGATED_BEFORE = re.compile(r"\b(?:no|without)\s+(?:any\s+)?$")  # "no percussion", "without any drums"
+_NEGATED_BEFORE = re.compile(r"\b(?:no|without)\s+(?:any\s+)?$")  # e.g. "no percussion", "without any drums"
 _FEMALE = re.compile(r"\b(?:female|woman|women|girl|girls|soprano|alto)\b")
 _MALE = re.compile(r"\b(?:male|man|men|boy|boys|tenor|baritone)\b")
 
@@ -89,7 +81,6 @@ def parse_phrase(phrase: str, track_id: str = "", source: str = "") -> list[Requ
     def add(**kw):
         reqs.append(Requirement(track_id=track_id, phrase=phrase, source=source, **kw))
 
-    # ---- negations -------------------------------------------------------
     m = _NO_VOCALS.search(phrase)
     if m:
         neg_spans.append(m.span())
@@ -110,7 +101,6 @@ def parse_phrase(phrase: str, track_id: str = "", source: str = "") -> list[Requ
         neg_spans.append(m.span())
         add(category="instruments", value="other instruments", polarity=-1, check="clap", clap_text=phrase)
 
-    # ---- tempo -----------------------------------------------------------
     m = _BPM.search(phrase)
     if m:
         bpm = float(m.group(1))
@@ -127,7 +117,7 @@ def parse_phrase(phrase: str, track_id: str = "", source: str = "") -> list[Requ
                 params=dict(bpm_min=lo, bpm_max=hi), clap_text=f"{label} tempo music")
             break
 
-    # "only vocables" forbids lyrics but still means singing
+    # vocables are singing, even when lyrics are forbidden
     vocal_hits = [m for m in _RE["vocals"].finditer(phrase)
                   if not _covered(m.span(), neg_spans) or m.group(1) == "vocables"]
     # later categories skip these spans ("rap" stays a genre too)
@@ -157,7 +147,7 @@ def parse_phrase(phrase: str, track_id: str = "", source: str = "") -> list[Requ
             if cat == "instruments":
                 if term in ("beat", "beats") and source == "caption":
                     continue
-                # a beatboxer "imitating the drums" / "vocal percussion": no real instrument
+                # imitated drums or "vocal percussion" are no real instrument
                 if "imitat" in phrase or phrase[:m.start()].endswith("vocal "):
                     continue
                 if _NEGATED_BEFORE.search(phrase[:m.start()]):
@@ -166,7 +156,7 @@ def parse_phrase(phrase: str, track_id: str = "", source: str = "") -> list[Requ
                     check, params = "essentia_instrument", dict(label=vocab.ESSENTIA_INSTRUMENT_MAP[term])
                 clap = f"music with {term}" if polarity > 0 else f"music without {term}"
             elif cat == "genre":
-                # "ambient noise / sounds / nature sounds" describes the background, not the genre
+                # ambient noise or nature sounds describe background, not genre
                 if term == "ambient" and re.match(r"\s+(?:noise|sound|nature)", phrase[m.end():]):
                     continue
                 if term in vocab.DISCOGS_GENRE_MAP:
@@ -186,7 +176,7 @@ def parse_phrase(phrase: str, track_id: str = "", source: str = "") -> list[Requ
             add(category=cat, value=term, polarity=polarity, check=check, params=params, clap_text=clap)
         taken += cat_spans
 
-    # Aspect tags that matched nothing are still requirements (checked by CLAP)
+    # unmatched aspect tags are still requirements, checked by CLAP
     if not reqs and source == "aspect_list":
         add(category="other", value=phrase, check="clap", clap_text=phrase)
     return reqs
@@ -206,7 +196,7 @@ def parse_prompt(text: str, prompt_type: str, track_id: str = "") -> list[Requir
 
 
 def parse_dataframe(df: pd.DataFrame) -> pd.DataFrame:
-    """Requirements for every track (uses ``actual_prompt`` and ``prompt_type``)."""
+    """requirements for every track from ``actual_prompt`` and ``prompt_type``."""
     rows = []
     for _, row in df.iterrows():
         for i, r in enumerate(parse_prompt(row["actual_prompt"], row["prompt_type"], row["track_id"])):

@@ -1,12 +1,4 @@
-"""Stage 2: expert comments -> mismatch records -> ground truth (no audio needed).
-
-    build_ground_truth.py            # build, save, print a summary
-    build_ground_truth.py --review   # also print the comments that still need a manual look
-
-    data/processed/mismatch_records.csv           one row per (track, extracted issue)
-    data/processed/ground_truth_per_category.csv  one row per (track, category)
-    data/processed/ground_truth_per_track.csv     one row per track
-"""
+"""stage 2: expert comments to mismatch records and ground truth."""
 from __future__ import annotations
 
 import argparse
@@ -34,7 +26,7 @@ def print_summary(df, records, per_category, per_track):
     print("== records by source x review_status ==")
     print(pd.crosstab(records["source"], records["review_status"], margins=True).to_string())
 
-    # the notebook-02 extractor alone (manual review 04 relabels some of its records afterwards)
+    # notebook-02 extractor alone; review 04 relabels some records later
     n_rule_v2 = df.loc[has_text(df["Comments"]), "Comments"].map(lambda c: len(rule_v2_records(c.lower().strip())))
     got = {"records": int(n_rule_v2.sum()), "tracks": int((n_rule_v2 > 0).sum())}
     status = "OK" if got == NOTEBOOK_RULE_V2 else "DIFFERENT"
@@ -93,7 +85,7 @@ def main():
     df = load_sunocaps()
     records = build_mismatch_records(df)
     per_category, per_track = build_ground_truth(df, records)
-    # keep the prompt and the comment next to the labels (used by notebook 03)
+    # keep prompt and comment next to labels (for notebook 03)
     per_track = per_track.merge(df[["track_id", "actual_prompt", "Comments"]], on="track_id").rename(
         columns={"Comments": "expert_comment"})
 

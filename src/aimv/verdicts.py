@@ -1,30 +1,4 @@
-"""Stage 4: requirements + cached CLAP audio embeddings -> one verdict per requirement.
-
-Verdicts: satisfied | ignored | changed | hallucinated (see README). Helper verdicts that never
-count as a mismatch: not_checked (gender when no vocals are heard), unknown (unmapped tempo word)
-and none (the hallucination check found no vocals).
-
-Checks
-------
-* tempo           CLAP zero-shot slow / medium / fast + prior correction (tempo_word_verdict);
-                  an explicit BPM would use tempo_verdict on the librosa estimate
-* vocal_presence  p_vocals = CLAP softmax("a song with singing vocals" vs "instrumental music
-                  without vocals"); +1 and p < 0.5 -> ignored, -1 and p >= 0.5 -> ignored
-* vocal_gender    only if p_vocals >= 0.5; female vs male vocalist, wrong gender -> changed
-* everything else (check "clap" and "essentia_*"; Essentia is postponed): s = cos(track, text),
-                  score_pct = percentile of s among tracks with no requirement of the same
-                  category and value; satisfied if score_pct >= tau, reversed for polarity -1
-* hallucination   p_vocals >= 0.5 in a track whose prompt has no vocals requirement at all
-
-Every row gets a mismatch_score in [0, 1] (higher = more likely a mismatch) for ROC-AUC:
-1 - score_pct for CLAP checks (score_pct for prohibitions), the CLAP probability of the wrong
-answer for the vocal checks, and 0/1 for the rule-based tempo check.
-
-Essentia (optional, data/processed/essentia_scores.csv from notebooks/04_essentia.ipynb): the
-essentia_* requirements can use the Essentia activation of their label instead of CLAP, calibrated
-the same way, and vocal presence can use the Essentia voice score. system_inputs() builds the
-inputs for the systems "clap", "essentia" and "average" (mean of both).
-"""
+"""stage 4: one verdict per requirement from cached audio evidence."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -51,13 +25,13 @@ SYSTEMS = ["clap", "essentia", "average"]
 
 
 def stack_track_embeddings(window_embs) -> tuple[list[str], np.ndarray]:
-    """Track embedding = normalised mean of the window embeddings. Returns (track_ids, matrix)."""
+    """track embedding = normalised mean of its window embeddings."""
     ids = sorted(window_embs)
     return ids, np.stack([track_embedding(window_embs[t]) for t in ids])
 
 
 def softmax_probs(audio: np.ndarray, texts: np.ndarray, logit_scale: float) -> np.ndarray:
-    """(n_tracks, n_texts): softmax over the texts of logit_scale * cosine similarity."""
+    """softmax over texts of logit_scale * cosine similarity."""
     logits = logit_scale * audio @ texts.T
     logits = logits - logits.max(axis=1, keepdims=True)
     p = np.exp(logits)
@@ -65,7 +39,7 @@ def softmax_probs(audio: np.ndarray, texts: np.ndarray, logit_scale: float) -> n
 
 
 def audio_evidence(track_ids, E, embed_text, logit_scale) -> pd.DataFrame:
-    """Per track: p_vocals, p_female and the slow / medium / fast tempo probabilities."""
+    """per track: p_vocals, p_female and the tempo class probabilities."""
     vocals = softmax_probs(E, embed_text(VOCAL_TEXTS), logit_scale)
     gender = softmax_probs(E, embed_text(GENDER_TEXTS), logit_scale)
     tempo = softmax_probs(E, embed_text(TEMPO_TEXTS), logit_scale)
@@ -76,19 +50,19 @@ def audio_evidence(track_ids, E, embed_text, logit_scale) -> pd.DataFrame:
 
 
 def presence_text(clap_text: str, value: str, polarity: int) -> str:
-    """CLAP scores the element itself, also for prohibitions (it handles "without ..." badly)."""
+    """text to score: the element itself, also for prohibitions."""
     return clap_text if polarity > 0 else f"music with {value}"
 
 
 def percentile(s: float, ref: np.ndarray) -> float:
-    """Share of the reference scores below s (ties count half); NaN if s is missing."""
+    """share of reference scores below s, ties count half."""
     if np.isnan(s):
         return np.nan
     return float((ref < s).mean() + 0.5 * (ref == s).mean())
 
 
 def clap_percentiles(reqs: pd.DataFrame, track_ids, E, embed_text) -> pd.DataFrame:
-    """s and score_pct for every CLAP-check requirement (index = reqs index)."""
+    """s and score_pct for every CLAP-check requirement."""
     clap = reqs[~reqs["check"].isin(RULE_CHECKS)].copy()
     clap["text"] = [presence_text(t, v, p) for t, v, p in zip(clap["clap_text"], clap["value"], clap["polarity"])]
     texts = sorted(set(clap["text"]))
@@ -106,15 +80,8 @@ def clap_percentiles(reqs: pd.DataFrame, track_ids, E, embed_text) -> pd.DataFra
     return clap[["text", "s", "score_pct"]]
 
 
-# ---------------------------------------------------------------------------
-# Essentia (optional second audio module)
-# ---------------------------------------------------------------------------
-
 def load_essentia_scores(path=ESSENTIA_CSV, stat: str = "mean") -> pd.DataFrame | None:
-    """Essentia activations per track (time-mean by default), or None if the file does not exist yet.
-
-    The CSV has columns like "genre__Rock---Indie Rock__mean"; the result keeps "genre__Rock---Indie Rock".
-    """
+    """per-track Essentia activations for one statistic, or None if missing."""
     path = Path(path)
     if not path.exists():
         return None
@@ -124,11 +91,7 @@ def load_essentia_scores(path=ESSENTIA_CSV, stat: str = "mean") -> pd.DataFrame 
 
 
 def essentia_track_scores(essentia: pd.DataFrame, check: str, params: dict) -> pd.Series | None:
-    """One Essentia score per track for a requirement, or None if its label is not in the models.
-
-    genre: max over the Discogs-400 labels containing any of params["labels"] (e.g. "Rock---");
-    instruments / mood: the MTG-Jamendo class params["label"].
-    """
+    """one Essentia score per track, or None if label unknown."""
     prefix = ESSENTIA_PREFIX[check]
     if check == "essentia_genre":
         cols = [c for c in essentia.columns if c.startswith(f"{prefix}__") and any(s in c for s in params["labels"])]
@@ -138,9 +101,7 @@ def essentia_track_scores(essentia: pd.DataFrame, check: str, params: dict) -> p
 
 
 def essentia_percentiles(reqs: pd.DataFrame, essentia: pd.DataFrame, track_ids) -> pd.DataFrame:
-    """s (Essentia activation) and score_pct for every essentia_* requirement, calibrated like CLAP
-    (percentile among tracks whose prompt does not mention the element). NaN where Essentia has no
-    matching label or no score for the track; those requirements keep their CLAP score."""
+    """s and score_pct for essentia_* requirements, calibrated like CLAP."""
     rows = reqs[reqs["check"].isin(ESSENTIA_PREFIX)]
     mentioned = reqs.groupby(["category", "value"])["track_id"].agg(set)
     out = pd.DataFrame(np.nan, index=rows.index, columns=["s", "score_pct"])
@@ -156,7 +117,7 @@ def essentia_percentiles(reqs: pd.DataFrame, essentia: pd.DataFrame, track_ids) 
 
 
 def add_essentia_voice(evidence: pd.DataFrame, essentia: pd.DataFrame) -> pd.DataFrame:
-    """evidence + p_voice = Essentia voice_instrumental probability of "voice" (NaN if missing)."""
+    """add p_voice, the Essentia probability of "voice", to evidence."""
     ev = evidence.copy()
     ev["p_voice"] = essentia["voice__voice"].reindex(ev.index) if "voice__voice" in essentia.columns else np.nan
     return ev
@@ -164,13 +125,7 @@ def add_essentia_voice(evidence: pd.DataFrame, essentia: pd.DataFrame) -> pd.Dat
 
 def system_inputs(system: str, evidence: pd.DataFrame, clap_scores: pd.DataFrame,
                   essentia_scores: pd.DataFrame | None = None):
-    """(evidence, scores) for one system:
-
-    clap      CLAP everywhere (the default pipeline)
-    essentia  Essentia score_pct for essentia_* requirements and Essentia p_voice for vocal presence,
-              wherever Essentia has a value; CLAP for everything else
-    average   mean of the CLAP and Essentia score_pct / vocal probability where both exist
-    """
+    """evidence and scores for the clap, essentia or average system."""
     ev, scores = evidence.copy(), clap_scores[["s", "score_pct"]].copy()
     if system == "clap" or essentia_scores is None:
         return ev, scores
@@ -190,14 +145,14 @@ def system_inputs(system: str, evidence: pd.DataFrame, clap_scores: pd.DataFrame
 
 
 def clap_verdict(score_pct: float, polarity: int, tau: float = DEFAULT_TAU) -> str:
-    """satisfied if the element is detected (score_pct >= tau) and wanted, or absent and prohibited."""
+    """satisfied if detection (score_pct >= tau) matches the polarity."""
     present = score_pct >= tau
     return "satisfied" if present == (polarity > 0) else "ignored"
 
 
 def requirement_verdicts(reqs: pd.DataFrame, evidence: pd.DataFrame, clap_scores: pd.DataFrame,
                          class_means, tau: float = DEFAULT_TAU, bpm: dict | None = None) -> pd.DataFrame:
-    """One row per requirement with verdict, detail, prob / score_pct and mismatch_score."""
+    """one row per requirement with its verdict and mismatch_score."""
     rows = []
     for idx, r in reqs.iterrows():
         ev = evidence.loc[r["track_id"]]
@@ -231,7 +186,7 @@ def requirement_verdicts(reqs: pd.DataFrame, evidence: pd.DataFrame, clap_scores
 
 
 def hallucination_rows(reqs: pd.DataFrame, evidence: pd.DataFrame) -> pd.DataFrame:
-    """One row per track whose prompt has no vocals requirement: hallucinated if vocals are heard."""
+    """hallucination check for tracks without any vocals requirement."""
     with_vocals = set(reqs.loc[reqs["category"] == "vocals", "track_id"])
     rows = []
     for tid, p in evidence["p_vocals"].items():
@@ -250,7 +205,7 @@ def all_verdicts(reqs, evidence, clap_scores, class_means, tau=DEFAULT_TAU, bpm=
 
 
 def apply_tau(verdicts: pd.DataFrame, tau: float) -> pd.DataFrame:
-    """Same verdicts with a different tau for the CLAP checks (rule-based checks are unchanged)."""
+    """same verdicts with a different tau for the CLAP checks."""
     v = verdicts.copy()
     clap = v["score_pct"].notna()
     present = v.loc[clap, "score_pct"] >= tau
@@ -259,8 +214,7 @@ def apply_tau(verdicts: pd.DataFrame, tau: float) -> pd.DataFrame:
 
 
 def predictions_per_category(verdicts: pd.DataFrame, track_ids) -> pd.DataFrame:
-    """One row per (track, category): pred_mismatch = any ignored / changed / hallucinated verdict,
-    pred_score = max mismatch_score (both 0 when the prompt has nothing in that category)."""
+    """one row per (track, category) with pred_mismatch and pred_score."""
     v = verdicts.assign(is_mismatch=verdicts["verdict"].isin(MISMATCH_VERDICTS),
                         is_requirement=verdicts["check"] != "vocal_hallucination")
     agg = v.groupby(["track_id", "category"]).agg(n_requirements=("is_requirement", "sum"),

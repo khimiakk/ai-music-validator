@@ -1,4 +1,4 @@
-"""Audio loading and windowed analysis for long tracks."""
+"""audio loading and windowed analysis for long tracks."""
 from __future__ import annotations
 
 import numpy as np
@@ -15,8 +15,7 @@ def load_audio(path, sr: int = CLAP_SR) -> np.ndarray:
 
 def window_starts(n_samples: int, sr: int, win_s: float = 10.0, n_windows: int | None = 3,
                   hop_s: float | None = None) -> list[int]:
-    """Start indices of analysis windows.
-    """
+    """start indices of analysis windows."""
     win = int(win_s * sr)
     if n_samples <= win:
         return [0]

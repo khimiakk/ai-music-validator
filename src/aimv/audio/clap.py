@@ -1,16 +1,9 @@
-"""CLAP audio/text embeddings.
-
-Default model: laion/larger_clap_general, a LAION CLAP checkpoint trained with
-additional music data. The HF checkpoint laion/larger_clap_music produced
-near-identical embeddings in our setup (tested with two transformers versions),
-so we use the general LAION CLAP; the original music checkpoint via the
-laion_clap package is a later check.
-"""
+"""audio and text embeddings with CLAP."""
 from __future__ import annotations
 
 import numpy as np
 
-DEFAULT_MODEL = "laion/larger_clap_general"  # not larger_clap_music, see the module docstring
+DEFAULT_MODEL = "laion/larger_clap_general"  # larger_clap_music gave near-identical embeddings
 
 
 def _to_numpy(out):
@@ -36,7 +29,7 @@ class ClapScorer:
         self.device = device or ("cuda" if torch.cuda.is_available()
                                  else "mps" if torch.backends.mps.is_available() else "cpu")
         self.model = ClapModel.from_pretrained(model_name).eval()
-        # nn.Module.to moves in place; PreTrainedModel.to is @wraps-decorated, which breaks Pylance's typing
+        # nn.Module.to keeps Pylance typing; PreTrainedModel.to breaks it
         torch.nn.Module.to(self.model, self.device)
         self.processor = ClapProcessor.from_pretrained(model_name)
         self.model_name = model_name
@@ -78,7 +71,7 @@ def track_embedding(window_embs: np.ndarray) -> np.ndarray:
 
 
 def zero_shot_probs(audio_emb: np.ndarray, text_embs: np.ndarray, logit_scale: float = 100.0) -> np.ndarray:
-    """Softmax over candidate texts (rows of ``text_embs``) for one audio embedding."""
+    """softmax over candidate texts for one audio embedding."""
     logits = logit_scale * (text_embs @ audio_emb)
     logits = logits - logits.max()
     p = np.exp(logits)

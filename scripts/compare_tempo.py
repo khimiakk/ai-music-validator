@@ -1,21 +1,4 @@
-"""Compare tempo estimators on tracks whose prompt has a tempo word (fast / slow / medium ...).
-
-    compare_tempo.py                     # comparison + listening sheet
-    compare_tempo.py --score-listening   # score the estimators against my_label in tempo_listening.csv
-
-    a) bpm        librosa beat tracker (audio_features.csv, default prior centred on 120 BPM)
-    b) bpm_flat   librosa tempo with a flat prior over 40-220 BPM (extra pass, added to audio_features.csv)
-    c) clap       CLAP zero-shot "slow / medium / fast tempo music", score = p_fast - p_slow, verdict = argmax
-    d) clap_corr  same, but each class probability is divided by its mean over all 256 tracks first
-                  (CLAP leans towards "slow"); nothing here is tuned on the listening labels
-
-    Verdicts: a) and b) use tempo_verdict with the word's BPM range, c) and d) use tempo_word_verdict.
-
-    results/tempo_comparison.csv          one row per track
-    results/tempo_comparison_summary.csv  per estimator: medians, ROC-AUC fast vs slow, satisfied counts per word
-    results/figures/tempo_comparison.png  boxplots
-    results/tempo_listening.csv           24 tracks to label by ear (created once, never overwritten)
-"""
+"""compare tempo estimators on tracks with a tempo word."""
 from __future__ import annotations
 
 import argparse
@@ -49,11 +32,11 @@ ESTIMATORS = {"bpm": "a) librosa beat tracker",
 SCORE_LABELS = {"bpm": "BPM", "bpm_flat": "BPM", "clap": "p(fast) - p(slow)", "clap_corr": "p(fast) - p(slow)"}
 P_COLS = [f"p_{c}" for c in TEMPO_CLASSES]
 GROUPS = ["slow", "slow/medium", "medium", "medium/fast", "fast"]
-SLOW_BELOW, FAST_FROM = 90, 120  # BPM -> class, from the slow / medium / fast ranges in vocab.TEMPO_WORDS
+SLOW_BELOW, FAST_FROM = 90, 120  # bpm class bounds, from the ranges in vocab.TEMPO_WORDS
 
 
 def add_bpm_flat(feats: pd.DataFrame) -> pd.DataFrame:
-    """Extra pass over the audio: flat-prior tempo for every track, saved into audio_features.csv."""
+    """add flat-prior tempo for every track to audio_features.csv."""
     if "bpm_flat" in feats and feats["bpm_flat"].notna().all():
         return feats
     print(f"computing bpm_flat for {len(feats)} tracks ...", flush=True)
@@ -64,7 +47,7 @@ def add_bpm_flat(feats: pd.DataFrame) -> pd.DataFrame:
 
 
 def tempo_word_tracks(df: pd.DataFrame) -> pd.DataFrame:
-    """One row per track whose parsed requirements contain a tempo word (explicit BPM values are skipped)."""
+    """one row per track whose requirements contain a tempo word."""
     reqs = parse_dataframe(df)
     t = reqs[(reqs["category"] == "tempo") & reqs["value"].isin(TEMPO_WORD_CLASSES)].drop_duplicates("track_id")
     t = t.assign(bpm_min=t["params"].str["bpm_min"], bpm_max=t["params"].str["bpm_max"])
@@ -74,7 +57,7 @@ def tempo_word_tracks(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def clap_tempo_probs() -> pd.DataFrame:
-    """CLAP probabilities for slow / medium / fast tempo music, for every track."""
+    """slow / medium / fast CLAP tempo probabilities per track."""
     meta = json.load(open(PROCESSED_DIR / "clap_meta.json"))
     embs = np.load(PROCESSED_DIR / "clap_audio_windows.npz")
     scorer = ClapScorer(meta["model"])
@@ -141,11 +124,7 @@ def plot(t: pd.DataFrame, summary: pd.DataFrame, path: Path):
 
 
 def make_listening_sheet(t: pd.DataFrame, n_per_group: int = 12, seed: int = 0):
-    """12 fast- and 12 slow-prompted tracks, one version per original_id first.
-
-    "slow" comes from only 7 prompts and "fast" from 10, so the groups are topped up
-    with a second (different) version of an already chosen prompt.
-    """
+    """pick 12 fast and 12 slow tracks for listening."""
     if LISTENING_CSV.exists():
         print(f"{LISTENING_CSV} already exists, not overwriting it")
         return
@@ -172,7 +151,7 @@ def top_class(probs: np.ndarray) -> list[str]:
 
 
 def score_listening():
-    """Accuracy of each estimator (and of the prompt word itself) against my_label."""
+    """accuracy of each estimator and the prompt word vs my_label."""
     sheet = pd.read_csv(LISTENING_CSV, dtype=str).fillna("")
     sheet["my_label"] = sheet["my_label"].str.strip().str.lower()
     sheet = sheet[sheet["my_label"].isin(TEMPO_CLASSES)]

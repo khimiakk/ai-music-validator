@@ -1,13 +1,4 @@
-"""Tempo estimation and tempo checks.
-
-* ``tempo_verdict``      explicit BPM in the prompt (e.g. "120 bpm"): Mustango-style
-  check with +-8% tolerance; half/double tempo is accepted for these narrow ranges.
-* ``tempo_word_verdict`` tempo words ("slow", "fast", ...): CLAP zero-shot over
-  slow / medium / fast. The librosa beat tracker is pulled towards ~120 BPM and
-  could not separate fast from slow prompts (ROC-AUC 0.47, CLAP 0.90; see
-  scripts/compare_tempo.py). CLAP itself leans towards "slow", so the class
-  probabilities are prior-corrected (``prior_correct``) before the argmax.
-"""
+"""tempo estimation and the tempo checks."""
 from __future__ import annotations
 
 import numpy as np
@@ -16,7 +7,7 @@ TEMPO_SR = 22_050
 
 TEMPO_CLASSES = ["slow", "medium", "fast"]
 
-# tempo word from the prompt (see vocab.TEMPO_WORDS) -> tempo classes that satisfy it
+# tempo word -> tempo classes that satisfy it
 TEMPO_WORD_CLASSES = {
     "very slow": ["slow"], "slow": ["slow"], "slow tempo": ["slow"],
     "downtempo": ["slow", "medium"],
@@ -43,13 +34,13 @@ def estimate_tempo(y: np.ndarray, sr: int, max_seconds: float = 120.0) -> dict:
     tempo, beats = librosa.beat.beat_track(onset_envelope=onset_env, sr=TEMPO_SR)
     bpm = float(np.atleast_1d(tempo)[0])
     ibi = np.diff(librosa.frames_to_time(beats, sr=TEMPO_SR))
-    # beat_regularity = how even the beat intervals are; only a rough indicator, not a real confidence
+    # beat_regularity: evenness of beat intervals, not a real confidence
     conf = float(max(0.0, 1.0 - ibi.std() / ibi.mean())) if len(ibi) > 2 and ibi.mean() > 0 else 0.0
     return {"bpm": bpm, "beat_regularity": conf, "n_beats": int(len(beats))}
 
 
 def estimate_tempo_flat_prior(y: np.ndarray, sr: int, max_seconds: float = 120.0) -> float:
-    """librosa tempo with a flat prior over 40-220 BPM (the default prior is centred on 120 BPM)."""
+    """librosa tempo with a flat prior over 40-220 BPM."""
     import librosa
     from scipy import stats
 
@@ -59,18 +50,13 @@ def estimate_tempo_flat_prior(y: np.ndarray, sr: int, max_seconds: float = 120.0
 
 
 def prior_correct(probs, class_means) -> np.ndarray:
-    """Divide each class probability by its mean over all tracks, then renormalise."""
+    """divide class probabilities by their means, then renormalise."""
     p = np.asarray(probs, dtype=float) / np.asarray(class_means, dtype=float)
     return p / p.sum()
 
 
 def tempo_word_verdict(probs, word: str, class_means=None) -> tuple[str, str]:
-    """Verdict for a tempo word. ``probs``: CLAP softmax over TEMPO_CLASSES (slow, medium, fast).
-
-    ``class_means``: mean CLAP probability of each class over all 256 tracks. If given,
-    ``probs`` are prior-corrected first (without it this is the plain argmax).
-    satisfied if the top class is one of the classes the word accepts, otherwise changed.
-    """
+    """verdict for a tempo word from (prior-corrected) CLAP class probabilities."""
     if word not in TEMPO_WORD_CLASSES:
         return "unknown", f"unknown tempo word {word!r}"
     if class_means is not None:
@@ -83,10 +69,7 @@ def tempo_word_verdict(probs, word: str, class_means=None) -> tuple[str, str]:
 
 def tempo_verdict(bpm: float, bpm_min: float, bpm_max: float, tol: float = 0.08,
                   allow_octave: bool | None = None) -> tuple[str, str]:
-    """Verdict for an explicit BPM requirement only (tempo words use tempo_word_verdict).
-
-    Return (verdict, detail). verdict in {satisfied, changed, unknown}.
-    """
+    """verdict for an explicit BPM requirement, with octave tolerance."""
     if bpm is None or not np.isfinite(bpm) or bpm <= 0:
         return "unknown", "no tempo estimate"
     if allow_octave is None:
